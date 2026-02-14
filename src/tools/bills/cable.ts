@@ -1,0 +1,90 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { NombaClient } from "../../client.js";
+import { jsonResponse, errorResponse, logToolCall } from "../../utils.js";
+
+export function registerCableTools(
+  server: McpServer,
+  client: NombaClient
+): void {
+  server.registerTool(
+    "nomba_get_cable_providers",
+    {
+      title: "Get Cable TV Providers",
+      description:
+        "Fetch the list of available cable TV providers (e.g., DSTV, GOtv, Startimes). Use this to get provider codes before paying for a cable subscription.",
+    },
+    async () => {
+      logToolCall("nomba_get_cable_providers");
+      try {
+        const result = await client.get("/v1/bills/cabletv/providers");
+        return jsonResponse(result);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "nomba_lookup_cable_customer",
+    {
+      title: "Lookup Cable TV Customer",
+      description:
+        "Validate a cable TV smartcard/IUC number and get the customer's name. Always use this before paying for a cable subscription.",
+      inputSchema: {
+        smartcardNumber: z
+          .string()
+          .describe("The smartcard or IUC number"),
+        providerCode: z.string().describe("Cable TV provider code"),
+      },
+    },
+    async ({ smartcardNumber, providerCode }) => {
+      logToolCall("nomba_lookup_cable_customer", { smartcardNumber, providerCode });
+      try {
+        const result = await client.post(
+          "/v1/bills/cabletv/customer-lookup",
+          { smartcardNumber, providerCode }
+        );
+        return jsonResponse(result);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "nomba_pay_cable_subscription",
+    {
+      title: "Pay Cable TV Subscription",
+      description:
+        "Pay for a cable TV subscription (DSTV, GOtv, Startimes, etc.). Amount is in Naira.",
+      inputSchema: {
+        smartcardNumber: z
+          .string()
+          .describe("The smartcard or IUC number"),
+        providerCode: z.string().describe("Cable TV provider code"),
+        productCode: z
+          .string()
+          .describe("The subscription plan/bouquet code"),
+        amount: z
+          .number()
+          .positive()
+          .describe("Amount in Naira to pay"),
+      },
+    },
+    async ({ smartcardNumber, providerCode, productCode, amount }) => {
+      logToolCall("nomba_pay_cable_subscription", { smartcardNumber, providerCode, productCode, amount });
+      try {
+        const result = await client.post("/v1/bills/cabletv/pay", {
+          smartcardNumber,
+          providerCode,
+          productCode,
+          amount,
+        });
+        return jsonResponse(result);
+      } catch (error) {
+        return errorResponse(error);
+      }
+    }
+  );
+}
