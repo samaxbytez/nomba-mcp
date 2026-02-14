@@ -13,7 +13,8 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that co
   - [Claude Code](#claude-code)
 - [Architecture](#architecture)
 - [Tools Reference](#tools-reference)
-  - [Accounts](#accounts)
+  - [Accounts & Terminals](#accounts--terminals)
+  - [Sub-Accounts](#sub-accounts)
   - [Transfers](#transfers)
   - [Online Checkout](#online-checkout)
   - [Virtual Accounts](#virtual-accounts)
@@ -127,22 +128,31 @@ Add a `.mcp.json` file to your project root (or use global settings):
 src/
 ├── index.ts              # Entry point: validates env vars, creates server, connects stdio
 ├── client.ts             # NombaClient: OAuth2 token management + HTTP request wrapper
+├── utils.ts              # Shared helpers: jsonResponse, errorResponse, logToolCall, buildParams
 ├── tools/
-│   ├── accounts.ts       # Parent account details, balance, terminals
+│   ├── accounts.ts       # Parent account details, balance, terminals, terminal assign/unassign
+│   ├── sub-accounts.ts   # Sub-account CRUD, balance, suspend, reactivate
 │   ├── transfers.ts      # Bank list, account lookup, bank/internal transfers
 │   ├── checkout.ts       # Payment links, tokenized cards, refunds
 │   ├── virtual-accounts.ts  # Virtual account CRUD + listing
-│   ├── transactions.ts   # Transaction history + status requery
-│   ├── bills.ts          # Electricity, betting, cable TV
+│   ├── transactions.ts   # Transaction history, details, filtering, status requery
+│   ├── bills/
+│   │   ├── index.ts      # Re-exports all bill tool registrations
+│   │   ├── electricity.ts  # Electricity providers, meter lookup, token purchase
+│   │   ├── betting.ts    # Betting providers, account funding
+│   │   └── cable.ts      # Cable TV providers, smartcard lookup, subscription payment
 │   └── airtime.ts        # Airtime + data bundles
-└── resources/
-    └── bank-list.ts      # Cached bank code list (MCP resource)
+├── resources/
+│   └── bank-list.ts      # Cached bank code list (MCP resource, 24h TTL)
+└── **/*.test.ts          # 36 tests (Vitest) — co-located with source files
 ```
 
 **Key design decisions:**
 
 - **Automatic authentication** -- The `NombaClient` class handles the full OAuth2 lifecycle. Tokens are obtained on the first API call and refreshed 60 seconds before expiry. A promise lock prevents concurrent refresh requests when multiple tools execute in parallel.
-- **Structured error handling** -- Every tool catches errors and returns them with `isError: true`, so Claude can report the failure and suggest next steps rather than crashing.
+- **401 auto-retry** -- If a request fails with a 401, the server clears the stale token, re-authenticates, and retries once. This handles token revocation gracefully without infinite loops.
+- **Structured error handling** -- API errors are parsed into `NombaApiError` with status, code, and description. Every tool catches errors and returns them with `isError: true`, so Claude can report the failure and suggest next steps rather than crashing. Raw API bodies are never leaked.
+- **Audit logging** -- Every tool invocation is logged to stderr via `logToolCall()` with timestamp, tool name, and parameters (long values are truncated).
 - **Tool name prefixing** -- All tools are prefixed with `nomba_` to avoid collisions with other MCP servers that may be running simultaneously.
 - **Stdio transport** -- The server communicates over stdin/stdout using JSON-RPC. All logging uses `console.error` to avoid corrupting the protocol stream.
 
@@ -150,7 +160,7 @@ src/
 
 ## Tools Reference
 
-### Accounts
+### Accounts & Terminals
 
 #### `nomba_get_parent_account`
 
@@ -191,6 +201,145 @@ List all POS terminals assigned to the parent Nomba account.
 **Returns:** Terminal IDs, serial numbers, and labels.
 
 **API Endpoint:** `GET /v1/accounts/terminals`
+
+---
+
+#### `nomba_assign_terminal`
+
+Assign a POS terminal to the parent Nomba account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `terminalId` | string | Yes | The terminal ID to assign |
+| `serialNumber` | string | Yes | The terminal serial number |
+
+**Returns:** Assignment confirmation.
+
+**API Endpoint:** `POST /v1/terminals/assign`
+
+---
+
+#### `nomba_unassign_terminal`
+
+Unassign a POS terminal from the parent Nomba account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `terminalId` | string | Yes | The terminal ID to unassign |
+
+**Returns:** Unassignment confirmation.
+
+**API Endpoint:** `POST /v1/terminals/unassign`
+
+---
+
+### Sub-Accounts
+
+Sub-accounts are child accounts under your parent Nomba account. They can have their own balances and make transactions independently.
+
+#### `nomba_create_sub_account`
+
+Create a new sub-account under the parent Nomba account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accountName` | string | Yes | Name for the sub-account |
+| `email` | string | No | Email address for the sub-account holder |
+| `phoneNumber` | string | No | Phone number for the sub-account holder |
+
+**Returns:** New sub-account details including account ID.
+
+**API Endpoint:** `POST /v1/accounts`
+
+---
+
+#### `nomba_list_sub_accounts`
+
+List all sub-accounts under the parent Nomba account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `limit` | number | No | Results per page (max 50) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+**Returns:** Array of sub-accounts with pagination cursor.
+
+**API Endpoint:** `GET /v1/accounts`
+
+---
+
+#### `nomba_get_sub_account`
+
+Fetch details of a specific sub-account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accountId` | string | Yes | The sub-account ID |
+
+**Returns:** Sub-account details including name, status, and metadata.
+
+**API Endpoint:** `GET /v1/accounts/{accountId}`
+
+---
+
+#### `nomba_get_sub_account_balance`
+
+Fetch the current balance of a specific sub-account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accountId` | string | Yes | The sub-account ID |
+
+**Returns:** Available balance in NGN.
+
+**API Endpoint:** `GET /v1/accounts/{accountId}/balance`
+
+---
+
+#### `nomba_update_sub_account`
+
+Update the details of an existing sub-account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accountId` | string | Yes | The sub-account ID to update |
+| `accountName` | string | No | New account name |
+| `email` | string | No | New email address |
+| `phoneNumber` | string | No | New phone number |
+
+**Returns:** Updated sub-account details.
+
+**API Endpoint:** `PUT /v1/accounts/{accountId}`
+
+---
+
+#### `nomba_suspend_sub_account`
+
+Suspend a sub-account. Suspended accounts cannot make or receive transactions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accountId` | string | Yes | The sub-account ID to suspend |
+
+**Returns:** Suspension confirmation.
+
+**API Endpoint:** `PUT /v1/accounts/{accountId}/suspend`
+
+> **Warning:** Suspended accounts are blocked from all transactions until reactivated.
+
+---
+
+#### `nomba_reactivate_sub_account`
+
+Reactivate a previously suspended sub-account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `accountId` | string | Yes | The sub-account ID to reactivate |
+
+**Returns:** Reactivation confirmation.
+
+**API Endpoint:** `PUT /v1/accounts/{accountId}/reactivate`
 
 ---
 
@@ -453,6 +602,38 @@ Check the status of a specific transaction using its session ID. Useful for veri
 
 ---
 
+#### `nomba_get_transaction`
+
+Fetch details of a single transaction by its transaction ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `transactionId` | string | Yes | The transaction ID to look up |
+
+**Returns:** Full transaction details including amount, type, status, and metadata.
+
+**API Endpoint:** `GET /v1/transactions/{transactionId}`
+
+---
+
+#### `nomba_filter_transactions`
+
+Filter transactions on the parent account with advanced filters. Supports filtering by type, date range, and pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `type` | string | No | Filter by transaction type: `CREDIT` or `DEBIT` |
+| `limit` | number | No | Results per page (max 50) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `dateFrom` | string | No | Start date in UTC (e.g., `2024-01-01T00:00:00Z`) |
+| `dateTo` | string | No | End date in UTC (e.g., `2024-12-31T23:59:59Z`) |
+
+**Returns:** Filtered array of transactions with pagination cursor.
+
+**API Endpoint:** `GET /v1/transactions/filter`
+
+---
+
 ### Bills & Utilities
 
 #### Electricity
@@ -644,7 +825,7 @@ The server exposes one MCP resource:
 
 ### `nomba://banks`
 
-A cached list of all Nigerian bank codes and names in JSON format. This data changes infrequently, so the server fetches it once and caches it in memory for the duration of the session.
+A cached list of all Nigerian bank codes and names in JSON format. This data changes infrequently, so the server fetches it once and caches it in memory for 24 hours before re-fetching.
 
 Clients can read this resource instead of calling the `nomba_list_banks` tool when they need to reference bank codes without making an API call each time.
 
@@ -658,6 +839,16 @@ Here are example prompts you can use with Claude once the server is connected:
 - "What's my Nomba account balance?"
 - "Show me my account details"
 - "List all my POS terminals"
+
+**Sub-Accounts:**
+- "Create a sub-account called 'Lagos Branch'"
+- "List all my sub-accounts"
+- "What's the balance on sub-account abc-123?"
+- "Suspend sub-account abc-123"
+
+**Terminals:**
+- "Assign terminal TID123 with serial number SN456"
+- "Unassign terminal TID123"
 
 **Transfers:**
 - "What's the bank code for GTBank?"
@@ -676,7 +867,8 @@ Here are example prompts you can use with Claude once the server is connected:
 
 **Transactions:**
 - "Show me my last 10 transactions"
-- "Show me all transactions from January 2024"
+- "Show me all credit transactions from January 2024"
+- "Get the details of transaction TXN123"
 - "Check the status of transaction session ABC123"
 
 **Bills:**
@@ -708,7 +900,27 @@ npm run build
 | `npm run build` | Compile TypeScript to `build/` and make entry point executable |
 | `npm run dev` | Watch mode -- recompile on file changes |
 | `npm start` | Run the compiled server |
+| `npm test` | Run all tests (Vitest) |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run lint` | Lint source files (ESLint) |
+| `npm run format` | Format source files (Prettier) |
 | `npm run type-check` | Type-check without emitting files |
+
+### Testing
+
+The project includes 36 tests covering:
+
+- **`src/utils.test.ts`** -- Utility functions (jsonResponse, errorResponse, buildParams, logToolCall)
+- **`src/client.test.ts`** -- OAuth2 token lifecycle, 401 auto-retry, error parsing, HTTP methods
+- **`src/tools/tools.test.ts`** -- Representative tool handler tests, registration counts, cache TTL
+
+```bash
+npm test
+```
+
+### CI
+
+GitHub Actions runs lint, type-check, tests, and build on every push/PR across Node 18, 20, and 22.
 
 ### Testing with MCP Inspector
 
