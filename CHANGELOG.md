@@ -39,4 +39,4 @@
 - 30 MCP tools covering: accounts, transfers, checkout, virtual accounts, transactions, bills (electricity, betting, cable TV), airtime, and data
 - Bank list resource with caching
 - OAuth2 client credentials authentication with token refresh
-- Published as `@nomba-inc/mcp-server` on npm
+- Published as `nomba-mcp` on npm

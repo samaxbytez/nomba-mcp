@@ -1,11 +1,11 @@
 {
-  "name": "@nomba-inc/mcp-server",
-  "version": "1.2.0",
+  "name": "nomba-mcp",
+  "version": "1.0.0",
   "description": "MCP server for the Nomba banking/payments API",
   "type": "module",
-  "license": "ISC",
+  "license": "MIT",
   "bin": {
-    "nomba-mcp-server": "./build/index.js"
+    "nomba-mcp": "./build/index.js"
   },
   "files": [
     "build"
@@ -22,6 +22,14 @@
     "nigeria",
     "fintech"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samaxbytez/nomba-mcp.git"
+  },
+  "homepage": "https://github.com/samaxbytez/nomba-mcp",
+  "bugs": {
+    "url": "https://github.com/samaxbytez/nomba-mcp/issues"
+  },
   "scripts": {
     "build": "tsc && chmod 755 build/index.js",
     "dev": "tsc --watch",
@@ -32,9 +40,6 @@
     "lint": "eslint src",
     "format": "prettier --write src",
     "prepublishOnly": "npm run build"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

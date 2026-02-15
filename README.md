@@ -1,4 +1,4 @@
-# Nomba MCP Server
+# Nomba MCP
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects Claude to the [Nomba](https://nomba.com) banking and payments API. This gives Claude the ability to check account balances, send money, generate payment links, manage virtual accounts, buy airtime, pay utility bills, and more -- all through natural language.
 
@@ -51,13 +51,13 @@ Authentication is handled automatically. The server obtains an OAuth2 access tok
 No build step required. Just configure your MCP client with `npx`:
 
 ```bash
-npx @nomba-inc/mcp-server
+npx nomba-mcp
 ```
 
 Or install globally:
 
 ```bash
-npm install -g @nomba-inc/mcp-server
+npm install -g nomba-mcp
 ```
 
 ## Configuration
@@ -85,7 +85,7 @@ Add the following to your Claude Desktop configuration file:
   "mcpServers": {
     "nomba": {
       "command": "npx",
-      "args": ["-y", "@nomba-inc/mcp-server"],
+      "args": ["-y", "nomba-mcp"],
       "env": {
         "NOMBA_CLIENT_ID": "your_client_id",
         "NOMBA_CLIENT_SECRET": "your_client_secret",
@@ -108,7 +108,7 @@ Add a `.mcp.json` file to your project root (or use global settings):
   "mcpServers": {
     "nomba": {
       "command": "npx",
-      "args": ["-y", "@nomba-inc/mcp-server"],
+      "args": ["-y", "nomba-mcp"],
       "env": {
         "NOMBA_CLIENT_ID": "your_client_id",
         "NOMBA_CLIENT_SECRET": "your_client_secret",
@@ -888,7 +888,7 @@ Here are example prompts you can use with Claude once the server is connected:
 
 ```bash
 git clone <repo-url>
-cd nomba-mcp-server
+cd nomba-mcp
 npm install
 npm run build
 ```
@@ -962,7 +962,7 @@ Your account may not have the required permissions. Check your Nomba dashboard f
 
 - **Claude Desktop:** Restart the application after updating `claude_desktop_config.json`
 - **Claude Code:** Restart the MCP server or reload your settings
-- Verify your config uses `"command": "npx"` with `"args": ["-y", "@nomba-inc/mcp-server"]`
+- Verify your config uses `"command": "npx"` with `"args": ["-y", "nomba-mcp"]`
 
 ### "Nomba API ... failed (429)"
 
@@ -980,4 +980,4 @@ The server defaults to the sandbox environment (`https://sandbox.nomba.com`). Sa
 
 ## License
 
-ISC
+[MIT](LICENSE)

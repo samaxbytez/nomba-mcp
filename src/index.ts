@@ -38,8 +38,8 @@ const nombaClient = new NombaClient({
 });
 
 const server = new McpServer({
-  name: "nomba-api",
-  version: "1.2.0",
+  name: "nomba-mcp",
+  version: "1.0.0",
 });
 
 registerAccountTools(server, nombaClient);

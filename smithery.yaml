@@ -1,0 +1,36 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - nombaClientId
+      - nombaClientSecret
+      - nombaAccountId
+    properties:
+      nombaClientId:
+        type: string
+        description: Your Nomba client ID from developer.nomba.com
+      nombaClientSecret:
+        type: string
+        description: Your Nomba client secret from developer.nomba.com
+      nombaAccountId:
+        type: string
+        description: Your Nomba parent account ID (UUID)
+      nombaBaseUrl:
+        type: string
+        description: API base URL (defaults to sandbox)
+  commandFunction: |
+    (config) => ({
+      command: 'npx',
+      args: ['-y', 'nomba-mcp'],
+      env: {
+        NOMBA_CLIENT_ID: config.nombaClientId,
+        NOMBA_CLIENT_SECRET: config.nombaClientSecret,
+        NOMBA_ACCOUNT_ID: config.nombaAccountId,
+        ...(config.nombaBaseUrl ? { NOMBA_BASE_URL: config.nombaBaseUrl } : {})
+      }
+    })
+  exampleConfig:
+    nombaClientId: "your_client_id_here"
+    nombaClientSecret: "your_client_secret_here"
+    nombaAccountId: "your_account_id_here"
