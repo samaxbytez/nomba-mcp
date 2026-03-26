@@ -85,6 +85,43 @@ describe("logToolCall", () => {
     const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
     expect(logged.secret).toBe("a".repeat(20) + "...");
   });
+
+  it("masks sensitive fields showing only last 4 chars", () => {
+    logToolCall("test", { accountNumber: "0123456789" });
+    const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
+    expect(logged.accountNumber).toBe("******6789");
+  });
+
+  it("masks all sensitive field types", () => {
+    logToolCall("test", {
+      phoneNumber: "08012345678",
+      customerEmail: "test@example.com",
+      meterNumber: "12345678",
+      smartcardNumber: "1234567890",
+      tokenizedCardId: "tok_abc123xyz",
+      bvn: "12345678901",
+    });
+    const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
+    expect(logged.phoneNumber).toBe("*******5678");
+    expect(logged.customerEmail).toBe("************.com");
+    expect(logged.meterNumber).toBe("****5678");
+    expect(logged.smartcardNumber).toBe("******7890");
+    expect(logged.tokenizedCardId).toBe("*********3xyz");
+    expect(logged.bvn).toBe("*******8901");
+  });
+
+  it("masks short sensitive values to ****", () => {
+    logToolCall("test", { bvn: "abc" });
+    const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
+    expect(logged.bvn).toBe("****");
+  });
+
+  it("does not mask non-sensitive fields", () => {
+    logToolCall("test", { amount: 5000, bankCode: "058" });
+    const logged = JSON.parse(errorSpy.mock.calls[0][0] as string);
+    expect(logged.amount).toBe(5000);
+    expect(logged.bankCode).toBe("058");
+  });
 });
 
 describe("constants", () => {
