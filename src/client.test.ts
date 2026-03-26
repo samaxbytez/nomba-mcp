@@ -264,12 +264,19 @@ describe("NombaClient - HTTP methods", () => {
   });
 });
 
-describe("NombaClient - HTTPS warning", () => {
-  it("warns on non-HTTPS baseUrl", () => {
+describe("NombaClient - HTTPS enforcement", () => {
+  it("throws on non-HTTPS baseUrl by default", () => {
+    expect(() => createClient({ baseUrl: "http://localhost:3000" })).toThrow(
+      "NOMBA_BASE_URL must use HTTPS"
+    );
+  });
+
+  it("allows non-HTTPS when NOMBA_ALLOW_INSECURE=true", () => {
+    vi.stubEnv("NOMBA_ALLOW_INSECURE", "true");
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    createClient({ baseUrl: "http://localhost:3000" });
+    expect(() => createClient({ baseUrl: "http://localhost:3000" })).not.toThrow();
     expect(spy).toHaveBeenCalledWith(
-      expect.stringContaining("HTTPS")
+      expect.stringContaining("NOMBA_ALLOW_INSECURE")
     );
     spy.mockRestore();
   });

@@ -60,9 +60,15 @@ export class NombaClient {
     this.config = config;
 
     if (!config.baseUrl.startsWith("https://")) {
-      console.error(
-        "WARNING: NOMBA_BASE_URL does not use HTTPS. Credentials may be exposed in transit."
-      );
+      if (process.env.NOMBA_ALLOW_INSECURE === "true") {
+        console.error(
+          "WARNING: NOMBA_ALLOW_INSECURE=true — using non-HTTPS base URL."
+        );
+      } else {
+        throw new Error(
+          "NOMBA_BASE_URL must use HTTPS. Set NOMBA_ALLOW_INSECURE=true to override for local development."
+        );
+      }
     }
   }
 

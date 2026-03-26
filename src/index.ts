@@ -27,7 +27,13 @@ if (!NOMBA_CLIENT_ID || !NOMBA_CLIENT_SECRET || !NOMBA_ACCOUNT_ID) {
 }
 
 if (NOMBA_BASE_URL.includes("api.nomba.com")) {
-  console.error("WARNING: Running against PRODUCTION Nomba API");
+  if (process.env.NOMBA_PRODUCTION_CONFIRMED !== "true") {
+    console.error(
+      "ERROR: Base URL points to production (api.nomba.com). Set NOMBA_PRODUCTION_CONFIRMED=true to confirm."
+    );
+    process.exit(1);
+  }
+  console.error("NOTICE: Running against PRODUCTION Nomba API");
 }
 
 const nombaClient = new NombaClient({
