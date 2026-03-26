@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
 
 export function registerTransferTools(
   server: McpServer,
@@ -104,9 +104,7 @@ export function registerTransferTools(
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         amount: z.number().positive().describe("Amount in Naira to transfer"),
-        destinationAccountId: z
-          .string()
-          .describe("Destination Nomba account ID (UUID)"),
+        destinationAccountId: safeId.describe("Destination Nomba account ID (UUID)"),
         narration: z
           .string()
           .optional()

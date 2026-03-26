@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
 
 export function registerCheckoutTools(
   server: McpServer,
@@ -76,9 +76,7 @@ export function registerCheckoutTools(
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         amount: z.number().positive().describe("Amount in Naira to charge"),
-        tokenizedCardId: z
-          .string()
-          .describe("The tokenized card ID from a previous checkout"),
+        tokenizedCardId: safeId.describe("The tokenized card ID from a previous checkout"),
         customerEmail: z
           .string()
           .email()
@@ -107,9 +105,7 @@ export function registerCheckoutTools(
         "Process a refund for a completed checkout transaction. You can do a full or partial refund by specifying the amount.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        transactionId: z
-          .string()
-          .describe("The transaction ID to refund"),
+        transactionId: safeId.describe("The transaction ID to refund"),
         amount: z
           .number()
           .positive()
@@ -140,9 +136,7 @@ export function registerCheckoutTools(
         "Retrieve the details and status of a checkout transaction by its order reference.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        orderReference: z
-          .string()
-          .describe("The order reference from the checkout order creation"),
+        orderReference: safeId.describe("The order reference from the checkout order creation"),
       },
     },
     async ({ orderReference }) => {
@@ -166,9 +160,7 @@ export function registerCheckoutTools(
         "Cancel an incomplete/pending checkout transaction. Only works for transactions that have not been completed.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        orderReference: z
-          .string()
-          .describe("The order reference of the transaction to cancel"),
+        orderReference: safeId.describe("The order reference of the transaction to cancel"),
       },
     },
     async ({ orderReference }) => {

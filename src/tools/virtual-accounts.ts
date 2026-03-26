@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, buildParams } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
 
 export function registerVirtualAccountTools(
   server: McpServer,
@@ -51,9 +51,7 @@ export function registerVirtualAccountTools(
         "Fetch details of a specific virtual account by its account ID. Returns account name, bank details, status, and balance.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The virtual account ID (UUID)"),
+        accountId: safeId.describe("The virtual account ID (UUID)"),
       },
     },
     async ({ accountId }) => {
@@ -77,9 +75,7 @@ export function registerVirtualAccountTools(
         "Update the details of an existing virtual account, such as the account name or callback URL.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The virtual account ID (UUID) to update"),
+        accountId: safeId.describe("The virtual account ID (UUID) to update"),
         accountName: z
           .string()
           .min(8)
@@ -118,9 +114,7 @@ export function registerVirtualAccountTools(
         "Expire/deactivate a virtual account so it can no longer receive payments. This action cannot be undone.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The virtual account ID (UUID) to expire"),
+        accountId: safeId.describe("The virtual account ID (UUID) to expire"),
       },
     },
     async ({ accountId }) => {

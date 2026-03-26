@@ -6,6 +6,7 @@ import {
   errorResponse,
   logToolCall,
   buildParams,
+  safeId,
 } from "../utils.js";
 
 export function registerSubAccountTools(
@@ -89,9 +90,7 @@ export function registerSubAccountTools(
         "Fetch details of a specific sub-account by its account ID.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID"),
+        accountId: safeId.describe("The sub-account ID"),
       },
     },
     async ({ accountId }) => {
@@ -113,9 +112,7 @@ export function registerSubAccountTools(
         "Fetch the current balance of a specific sub-account. Returns available balance in NGN.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID"),
+        accountId: safeId.describe("The sub-account ID"),
       },
     },
     async ({ accountId }) => {
@@ -139,9 +136,7 @@ export function registerSubAccountTools(
         "Update the details of an existing sub-account.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID to update"),
+        accountId: safeId.describe("The sub-account ID to update"),
         accountName: z
           .string()
           .optional()
@@ -183,9 +178,7 @@ export function registerSubAccountTools(
         "Suspend a sub-account. Suspended accounts cannot make or receive transactions.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID to suspend"),
+        accountId: safeId.describe("The sub-account ID to suspend"),
       },
     },
     async ({ accountId }) => {
@@ -210,9 +203,7 @@ export function registerSubAccountTools(
         "Reactivate a previously suspended sub-account.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID to reactivate"),
+        accountId: safeId.describe("The sub-account ID to reactivate"),
       },
     },
     async ({ accountId }) => {

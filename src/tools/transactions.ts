@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, buildParams } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
 
 export function registerTransactionTools(
   server: McpServer,
@@ -56,9 +56,7 @@ export function registerTransactionTools(
         "Requery/check the status of a specific transaction using its session ID. Useful for verifying if a transfer or payment was successful.",
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
-        sessionId: z
-          .string()
-          .describe("The session ID of the transaction to requery"),
+        sessionId: safeId.describe("The session ID of the transaction to requery"),
       },
     },
     async ({ sessionId }) => {
@@ -83,9 +81,7 @@ export function registerTransactionTools(
         "Fetch details of a single transaction by its transaction ID.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        transactionId: z
-          .string()
-          .describe("The transaction ID to look up"),
+        transactionId: safeId.describe("The transaction ID to look up"),
       },
     },
     async ({ transactionId }) => {

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
 
 export function registerAccountTools(
   server: McpServer,
@@ -72,12 +72,8 @@ export function registerAccountTools(
         "Assign a POS terminal to the parent Nomba account.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        terminalId: z
-          .string()
-          .describe("The terminal ID to assign"),
-        serialNumber: z
-          .string()
-          .describe("The terminal serial number"),
+        terminalId: safeId.describe("The terminal ID to assign"),
+        serialNumber: safeId.describe("The terminal serial number"),
       },
     },
     async ({ terminalId, serialNumber }) => {
@@ -102,9 +98,7 @@ export function registerAccountTools(
         "Unassign a POS terminal from the parent Nomba account.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        terminalId: z
-          .string()
-          .describe("The terminal ID to unassign"),
+        terminalId: safeId.describe("The terminal ID to unassign"),
       },
     },
     async ({ terminalId }) => {
