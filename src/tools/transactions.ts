@@ -13,6 +13,7 @@ export function registerTransactionTools(
       title: "List Bank Transactions",
       description:
         "Fetch bank transactions for the parent Nomba account. Supports filtering by date range and pagination. Returns transaction amounts, types (CREDIT/DEBIT), statuses, and metadata.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         limit: z
           .number()
@@ -53,6 +54,7 @@ export function registerTransactionTools(
       title: "Requery Transaction",
       description:
         "Requery/check the status of a specific transaction using its session ID. Useful for verifying if a transfer or payment was successful.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
         sessionId: z
           .string()
@@ -79,6 +81,7 @@ export function registerTransactionTools(
       title: "Get Transaction Details",
       description:
         "Fetch details of a single transaction by its transaction ID.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         transactionId: z
           .string()
@@ -104,6 +107,7 @@ export function registerTransactionTools(
       title: "Filter Transactions",
       description:
         "Filter transactions on the parent account with advanced filters. Supports filtering by type (CREDIT/DEBIT), date range, and pagination.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         type: z
           .enum(["CREDIT", "DEBIT"])

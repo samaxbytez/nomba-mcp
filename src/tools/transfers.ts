@@ -13,6 +13,7 @@ export function registerTransferTools(
       title: "List Bank Codes",
       description:
         "Fetch the list of all Nigerian bank codes and names. Use this before making bank transfers to get the correct bankCode for the recipient's bank.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_list_banks");
@@ -31,6 +32,7 @@ export function registerTransferTools(
       title: "Lookup Bank Account",
       description:
         "Validate a bank account by looking up the account holder's name. Always call this before initiating a bank transfer to confirm the recipient is correct.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
         accountNumber: z
           .string()
@@ -62,6 +64,7 @@ export function registerTransferTools(
       description:
         // Nomba is NGN-only
         "Transfer funds from the Nomba account to an external Nigerian bank account. Amount is in Naira (NGN). Always use nomba_lookup_bank_account first to verify the recipient.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         amount: z.number().positive().describe("Amount in Naira to transfer"),
         accountNumber: z
@@ -98,6 +101,7 @@ export function registerTransferTools(
       description:
         // Nomba is NGN-only
         "Transfer funds between two Nomba accounts (e.g., parent to sub-account or between sub-accounts). Amount is in Naira (NGN).",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         amount: z.number().positive().describe("Amount in Naira to transfer"),
         destinationAccountId: z

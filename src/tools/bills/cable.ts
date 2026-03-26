@@ -13,6 +13,7 @@ export function registerCableTools(
       title: "Get Cable TV Providers",
       description:
         "Fetch the list of available cable TV providers (e.g., DSTV, GOtv, Startimes). Use this to get provider codes before paying for a cable subscription.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_get_cable_providers");
@@ -31,6 +32,7 @@ export function registerCableTools(
       title: "Lookup Cable TV Customer",
       description:
         "Validate a cable TV smartcard/IUC number and get the customer's name. Always use this before paying for a cable subscription.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
         smartcardNumber: z
           .string()
@@ -58,6 +60,7 @@ export function registerCableTools(
       title: "Pay Cable TV Subscription",
       description:
         "Pay for a cable TV subscription (DSTV, GOtv, Startimes, etc.). Amount is in Naira.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         smartcardNumber: z
           .string()

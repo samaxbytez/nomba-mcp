@@ -13,6 +13,7 @@ export function registerElectricityTools(
       title: "Get Electricity Providers",
       description:
         "Fetch the list of available electricity distribution companies (DisCos). Use this to get provider codes before purchasing electricity tokens.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_get_electricity_providers");
@@ -31,6 +32,7 @@ export function registerElectricityTools(
       title: "Lookup Electricity Customer",
       description:
         "Validate an electricity meter number and get the customer's name. Always use this before purchasing electricity to confirm the meter details.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
         meterNumber: z.string().describe("The electricity meter number"),
         providerCode: z
@@ -63,6 +65,7 @@ export function registerElectricityTools(
       title: "Buy Electricity",
       description:
         "Purchase electricity tokens for a prepaid meter or pay a postpaid electricity bill. Amount is in Naira.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         meterNumber: z.string().describe("The electricity meter number"),
         providerCode: z.string().describe("Electricity provider code"),

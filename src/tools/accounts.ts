@@ -13,6 +13,7 @@ export function registerAccountTools(
       title: "Get Parent Account",
       description:
         "Fetch the parent account details for the authenticated Nomba business. Returns account ID, name, type, status, BVN, and linked bank accounts.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_get_parent_account");
@@ -31,6 +32,7 @@ export function registerAccountTools(
       title: "Get Parent Account Balance",
       description:
         "Fetch the current balance of the parent Nomba business account. Returns available balance in NGN.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_get_parent_balance");
@@ -49,6 +51,7 @@ export function registerAccountTools(
       title: "List Terminals",
       description:
         "List all POS terminals assigned to the parent Nomba account. Returns terminal IDs, serial numbers, and labels.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_list_terminals");
@@ -67,6 +70,7 @@ export function registerAccountTools(
       title: "Assign Terminal",
       description:
         "Assign a POS terminal to the parent Nomba account.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         terminalId: z
           .string()
@@ -96,6 +100,7 @@ export function registerAccountTools(
       title: "Unassign Terminal",
       description:
         "Unassign a POS terminal from the parent Nomba account.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         terminalId: z
           .string()

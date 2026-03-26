@@ -13,6 +13,7 @@ export function registerAirtimeTools(
       title: "Buy Airtime",
       description:
         "Purchase airtime/credit for a Nigerian phone number. Amount is in Naira. Supports all major networks (MTN, Airtel, Glo, 9mobile).",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         phoneNumber: z
           .string()
@@ -50,6 +51,7 @@ export function registerAirtimeTools(
       title: "List Data Plans",
       description:
         "Fetch available data bundle plans for a specific network provider. Returns plan names, data amounts, prices, and plan codes needed for purchasing.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         network: z
           .string()
@@ -78,6 +80,7 @@ export function registerAirtimeTools(
       title: "Buy Data Bundle",
       description:
         "Purchase a data bundle for a Nigerian phone number. Use nomba_list_data_plans first to get available plans and their codes.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         phoneNumber: z
           .string()

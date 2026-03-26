@@ -14,6 +14,7 @@ export function registerCheckoutTools(
       description:
         // Nomba is NGN-only
         "Create a checkout payment order and get a payment link. The customer can use this link to pay via card, bank transfer, or USSD. Amount is in Naira (NGN).",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         amount: z.number().positive().describe("Payment amount in Naira"),
         customerEmail: z
@@ -72,6 +73,7 @@ export function registerCheckoutTools(
       title: "Charge Tokenized Card",
       description:
         "Charge a previously saved/tokenized card. Use this for recurring payments or returning customers who saved their card during checkout.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         amount: z.number().positive().describe("Amount in Naira to charge"),
         tokenizedCardId: z
@@ -103,6 +105,7 @@ export function registerCheckoutTools(
       title: "Refund Transaction",
       description:
         "Process a refund for a completed checkout transaction. You can do a full or partial refund by specifying the amount.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         transactionId: z
           .string()
@@ -135,6 +138,7 @@ export function registerCheckoutTools(
       title: "Get Checkout Transaction Details",
       description:
         "Retrieve the details and status of a checkout transaction by its order reference.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         orderReference: z
           .string()
@@ -160,6 +164,7 @@ export function registerCheckoutTools(
       title: "Cancel Checkout Transaction",
       description:
         "Cancel an incomplete/pending checkout transaction. Only works for transactions that have not been completed.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         orderReference: z
           .string()

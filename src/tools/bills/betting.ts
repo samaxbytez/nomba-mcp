@@ -13,6 +13,7 @@ export function registerBettingTools(
       title: "Get Betting Providers",
       description:
         "Fetch the list of available betting platforms. Use this to get provider codes before funding a betting account.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_get_betting_providers");
@@ -31,6 +32,7 @@ export function registerBettingTools(
       title: "Fund Betting Account",
       description:
         "Fund a customer's betting account on a supported betting platform. Amount is in Naira.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         customerId: z
           .string()
