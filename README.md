@@ -1,6 +1,6 @@
-# @nomba-inc/mcp-server
+# nomba-mcp
 
-[![npm version](https://img.shields.io/npm/v/@nomba-inc/mcp-server.svg)](https://www.npmjs.com/package/@nomba-inc/mcp-server)
+[![npm version](https://img.shields.io/npm/v/nomba-mcp.svg)](https://www.npmjs.com/package/nomba-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 An MCP (Model Context Protocol) server for the [Nomba API](https://developer.nomba.com). Connect any MCP-compatible AI assistant to your Nomba business account to check balances, send money, generate payment links, manage virtual accounts, buy airtime, pay utility bills, and more.
@@ -52,13 +52,19 @@ Authentication is handled automatically. The server obtains an OAuth2 access tok
 ### Using npx (recommended)
 
 ```bash
+npx nomba-mcp
+```
+
+Also available as `@nomba-inc/mcp-server`:
+
+```bash
 npx @nomba-inc/mcp-server
 ```
 
 ### Global install
 
 ```bash
-npm install -g @nomba-inc/mcp-server
+npm install -g nomba-mcp
 ```
 
 ### Build from source
@@ -95,7 +101,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "nomba": {
       "command": "npx",
-      "args": ["-y", "@nomba-inc/mcp-server"],
+      "args": ["-y", "nomba-mcp"],
       "env": {
         "NOMBA_CLIENT_ID": "your_client_id",
         "NOMBA_CLIENT_SECRET": "your_client_secret",
@@ -115,7 +121,7 @@ Add to your project's `.mcp.json`:
   "mcpServers": {
     "nomba": {
       "command": "npx",
-      "args": ["-y", "@nomba-inc/mcp-server"],
+      "args": ["-y", "nomba-mcp"],
       "env": {
         "NOMBA_CLIENT_ID": "your_client_id",
         "NOMBA_CLIENT_SECRET": "your_client_secret",
@@ -134,7 +140,7 @@ Add to your MCP settings (Settings > MCP Servers):
 {
   "nomba": {
     "command": "npx",
-    "args": ["-y", "@nomba-inc/mcp-server"],
+    "args": ["-y", "nomba-mcp"],
     "env": {
       "NOMBA_CLIENT_ID": "your_client_id",
       "NOMBA_CLIENT_SECRET": "your_client_secret",
@@ -149,7 +155,7 @@ Add to your MCP settings (Settings > MCP Servers):
 Set the environment variables and run:
 
 ```bash
-NOMBA_CLIENT_ID=your_id NOMBA_CLIENT_SECRET=your_secret NOMBA_ACCOUNT_ID=your_account npx @nomba-inc/mcp-server
+NOMBA_CLIENT_ID=your_id NOMBA_CLIENT_SECRET=your_secret NOMBA_ACCOUNT_ID=your_account npx nomba-mcp
 ```
 
 The server communicates over stdio using the standard MCP transport, so it works with any client that supports the MCP protocol.
@@ -397,7 +403,7 @@ The server defaults to sandbox (`https://sandbox.nomba.com`). To use production,
 ### Tools not appearing
 
 - Restart your MCP client after updating config
-- Verify your config uses `"command": "npx"` with `"args": ["-y", "@nomba-inc/mcp-server"]`
+- Verify your config uses `"command": "npx"` with `"args": ["-y", "nomba-mcp"]`
 
 ## License
 
