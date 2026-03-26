@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, buildParams } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
 
 export function registerTransactionTools(
   server: McpServer,
@@ -13,6 +13,7 @@ export function registerTransactionTools(
       title: "List Bank Transactions",
       description:
         "Fetch bank transactions for the parent Nomba account. Supports filtering by date range and pagination. Returns transaction amounts, types (CREDIT/DEBIT), statuses, and metadata.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         limit: z
           .number()
@@ -53,10 +54,9 @@ export function registerTransactionTools(
       title: "Requery Transaction",
       description:
         "Requery/check the status of a specific transaction using its session ID. Useful for verifying if a transfer or payment was successful.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
-        sessionId: z
-          .string()
-          .describe("The session ID of the transaction to requery"),
+        sessionId: safeId.describe("The session ID of the transaction to requery"),
       },
     },
     async ({ sessionId }) => {
@@ -79,10 +79,9 @@ export function registerTransactionTools(
       title: "Get Transaction Details",
       description:
         "Fetch details of a single transaction by its transaction ID.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        transactionId: z
-          .string()
-          .describe("The transaction ID to look up"),
+        transactionId: safeId.describe("The transaction ID to look up"),
       },
     },
     async ({ transactionId }) => {
@@ -104,6 +103,7 @@ export function registerTransactionTools(
       title: "Filter Transactions",
       description:
         "Filter transactions on the parent account with advanced filters. Supports filtering by type (CREDIT/DEBIT), date range, and pagination.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         type: z
           .enum(["CREDIT", "DEBIT"])

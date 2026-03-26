@@ -60,9 +60,15 @@ export class NombaClient {
     this.config = config;
 
     if (!config.baseUrl.startsWith("https://")) {
-      console.error(
-        "WARNING: NOMBA_BASE_URL does not use HTTPS. Credentials may be exposed in transit."
-      );
+      if (process.env.NOMBA_ALLOW_INSECURE === "true") {
+        console.error(
+          "WARNING: NOMBA_ALLOW_INSECURE=true — using non-HTTPS base URL."
+        );
+      } else {
+        throw new Error(
+          "NOMBA_BASE_URL must use HTTPS. Set NOMBA_ALLOW_INSECURE=true to override for local development."
+        );
+      }
     }
   }
 
@@ -96,6 +102,41 @@ export class NombaClient {
     };
   }
 
+  private async refreshToken(): Promise<void> {
+    if (!this.tokenData?.refreshToken) {
+      return this.issueToken();
+    }
+
+    const url = `${this.config.baseUrl}/v1/auth/token/refresh`;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accountId: this.config.accountId,
+        },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: this.tokenData.refreshToken,
+        }),
+      });
+
+      if (!response.ok) {
+        return this.issueToken();
+      }
+
+      const result = (await response.json()) as NombaApiResponse<TokenResponse>;
+      this.tokenData = {
+        accessToken: result.data.access_token,
+        refreshToken: result.data.refresh_token,
+        expiresAt: new Date(result.data.expiresAt),
+      };
+    } catch {
+      return this.issueToken();
+    }
+  }
+
   private async ensureToken(): Promise<string> {
     if (
       this.tokenData &&
@@ -105,7 +146,8 @@ export class NombaClient {
     }
 
     if (!this.tokenPromise) {
-      this.tokenPromise = this.issueToken().finally(() => {
+      const renew = this.tokenData ? this.refreshToken() : this.issueToken();
+      this.tokenPromise = renew.finally(() => {
         this.tokenPromise = null;
       });
     }

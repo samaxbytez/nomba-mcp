@@ -6,6 +6,7 @@ import {
   errorResponse,
   logToolCall,
   buildParams,
+  safeId,
 } from "../utils.js";
 
 export function registerSubAccountTools(
@@ -18,6 +19,7 @@ export function registerSubAccountTools(
       title: "Create Sub-Account",
       description:
         "Create a new sub-account under the parent Nomba account. Sub-accounts can have their own balances and make transactions.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         accountName: z
           .string()
@@ -53,6 +55,7 @@ export function registerSubAccountTools(
       title: "List Sub-Accounts",
       description:
         "List all sub-accounts under the parent Nomba account. Supports pagination.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         limit: z
           .number()
@@ -85,10 +88,9 @@ export function registerSubAccountTools(
       title: "Get Sub-Account",
       description:
         "Fetch details of a specific sub-account by its account ID.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID"),
+        accountId: safeId.describe("The sub-account ID"),
       },
     },
     async ({ accountId }) => {
@@ -108,10 +110,9 @@ export function registerSubAccountTools(
       title: "Get Sub-Account Balance",
       description:
         "Fetch the current balance of a specific sub-account. Returns available balance in NGN.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID"),
+        accountId: safeId.describe("The sub-account ID"),
       },
     },
     async ({ accountId }) => {
@@ -133,10 +134,9 @@ export function registerSubAccountTools(
       title: "Update Sub-Account",
       description:
         "Update the details of an existing sub-account.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID to update"),
+        accountId: safeId.describe("The sub-account ID to update"),
         accountName: z
           .string()
           .optional()
@@ -176,10 +176,9 @@ export function registerSubAccountTools(
       title: "Suspend Sub-Account",
       description:
         "Suspend a sub-account. Suspended accounts cannot make or receive transactions.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID to suspend"),
+        accountId: safeId.describe("The sub-account ID to suspend"),
       },
     },
     async ({ accountId }) => {
@@ -202,10 +201,9 @@ export function registerSubAccountTools(
       title: "Reactivate Sub-Account",
       description:
         "Reactivate a previously suspended sub-account.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: z
-          .string()
-          .describe("The sub-account ID to reactivate"),
+        accountId: safeId.describe("The sub-account ID to reactivate"),
       },
     },
     async ({ accountId }) => {

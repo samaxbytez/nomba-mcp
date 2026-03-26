@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NombaClient } from "../client.js";
+import { SpendingGuard } from "../spending-guard.js";
 import { registerAccountTools } from "./accounts.js";
 import { registerCheckoutTools } from "./checkout.js";
 import { registerVirtualAccountTools } from "./virtual-accounts.js";
@@ -30,6 +31,14 @@ function createMockServer() {
     tools,
     resources,
   };
+}
+
+function createMockGuard() {
+  return new SpendingGuard({
+    maxTransaction: 100_000,
+    sessionSpendingCap: 500_000,
+    duplicateWindowMs: 60_000,
+  });
 }
 
 function createMockClient() {
@@ -93,7 +102,7 @@ describe("registerCheckoutTools - body construction", () => {
   it("nomba_create_checkout_order builds nested body with currency: NGN", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
-    registerCheckoutTools(server, client);
+    registerCheckoutTools(server, client, createMockGuard());
 
     const handler = tools.get("nomba_create_checkout_order")!;
     await handler({
@@ -123,7 +132,7 @@ describe("registerCheckoutTools - refund body", () => {
   it("omits amount when undefined", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
-    registerCheckoutTools(server, client);
+    registerCheckoutTools(server, client, createMockGuard());
 
     const handler = tools.get("nomba_refund_transaction")!;
     await handler({ transactionId: "TXN-1", amount: undefined });
@@ -136,7 +145,7 @@ describe("registerCheckoutTools - refund body", () => {
   it("includes amount when provided", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
-    registerCheckoutTools(server, client);
+    registerCheckoutTools(server, client, createMockGuard());
 
     const handler = tools.get("nomba_refund_transaction")!;
     await handler({ transactionId: "TXN-1", amount: 500 });
@@ -167,7 +176,7 @@ describe("registerAirtimeTools - conditional fields", () => {
   it("nomba_buy_airtime includes network when provided", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
-    registerAirtimeTools(server, client);
+    registerAirtimeTools(server, client, createMockGuard());
 
     const handler = tools.get("nomba_buy_airtime")!;
     await handler({ phoneNumber: "08012345678", amount: 100, network: "MTN" });
@@ -182,7 +191,7 @@ describe("registerAirtimeTools - conditional fields", () => {
   it("nomba_buy_airtime omits network when falsy", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
-    registerAirtimeTools(server, client);
+    registerAirtimeTools(server, client, createMockGuard());
 
     const handler = tools.get("nomba_buy_airtime")!;
     await handler({
@@ -202,7 +211,7 @@ describe("registerBillTools", () => {
   it("registers all 8 bill tools", () => {
     const { server } = createMockServer();
     const client = createMockClient();
-    registerBillTools(server, client);
+    registerBillTools(server, client, createMockGuard());
     expect(server.registerTool).toHaveBeenCalledTimes(8);
   });
 });

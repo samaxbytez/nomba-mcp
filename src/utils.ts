@@ -1,6 +1,15 @@
+import { z } from "zod";
+
 export const TOKEN_BUFFER_MS = 60_000;
 export const MAX_PAGE_SIZE = 50;
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+export const safeId = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9_-]+$/,
+    "ID must contain only alphanumeric characters, hyphens, and underscores"
+  );
 
 export function jsonResponse(data: unknown) {
   return {
@@ -26,13 +35,32 @@ export function buildParams(
   return params;
 }
 
+const SENSITIVE_LOG_FIELDS = new Set([
+  "accountNumber",
+  "phoneNumber",
+  "customerEmail",
+  "meterNumber",
+  "smartcardNumber",
+  "tokenizedCardId",
+  "bvn",
+]);
+
+function maskValue(value: string): string {
+  if (value.length <= 4) return "****";
+  return "*".repeat(value.length - 4) + value.slice(-4);
+}
+
 export function logToolCall(tool: string, params?: Record<string, unknown>) {
   const sanitized: Record<string, unknown> = { ts: new Date().toISOString(), tool };
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      sanitized[k] = typeof v === "string" && v.length > 100
-        ? v.slice(0, 20) + "..."
-        : v;
+      if (SENSITIVE_LOG_FIELDS.has(k) && typeof v === "string") {
+        sanitized[k] = maskValue(v);
+      } else if (typeof v === "string" && v.length > 100) {
+        sanitized[k] = v.slice(0, 20) + "...";
+      } else {
+        sanitized[k] = v;
+      }
     }
   }
   console.error(JSON.stringify(sanitized));

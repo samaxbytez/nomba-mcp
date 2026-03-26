@@ -2,10 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { SpendingGuard } from "../spending-guard.js";
 
 export function registerAirtimeTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_buy_airtime",
@@ -13,6 +15,7 @@ export function registerAirtimeTools(
       title: "Buy Airtime",
       description:
         "Purchase airtime/credit for a Nigerian phone number. Amount is in Naira. Supports all major networks (MTN, Airtel, Glo, 9mobile).",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         phoneNumber: z
           .string()
@@ -22,6 +25,7 @@ export function registerAirtimeTools(
         amount: z
           .number()
           .positive()
+          .max(guard.config.maxTransaction)
           .describe("Amount of airtime in Naira"),
         network: z
           .string()
@@ -34,9 +38,11 @@ export function registerAirtimeTools(
     async ({ phoneNumber, amount, network }) => {
       logToolCall("nomba_buy_airtime", { phoneNumber, amount, network });
       try {
+        guard.validate(amount, phoneNumber);
         const body: Record<string, unknown> = { phoneNumber, amount };
         if (network) body.network = network;
         const result = await client.post("/v1/bills/airtime/pay", body);
+        guard.record(amount, phoneNumber);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -50,6 +56,7 @@ export function registerAirtimeTools(
       title: "List Data Plans",
       description:
         "Fetch available data bundle plans for a specific network provider. Returns plan names, data amounts, prices, and plan codes needed for purchasing.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
         network: z
           .string()
@@ -78,6 +85,7 @@ export function registerAirtimeTools(
       title: "Buy Data Bundle",
       description:
         "Purchase a data bundle for a Nigerian phone number. Use nomba_list_data_plans first to get available plans and their codes.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
         phoneNumber: z
           .string()

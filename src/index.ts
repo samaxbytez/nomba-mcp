@@ -12,6 +12,7 @@ import { registerBillTools } from "./tools/bills/index.js";
 import { registerAirtimeTools } from "./tools/airtime.js";
 import { registerSubAccountTools } from "./tools/sub-accounts.js";
 import { registerBankListResource } from "./resources/bank-list.js";
+import { SpendingGuard } from "./spending-guard.js";
 
 const NOMBA_CLIENT_ID = process.env.NOMBA_CLIENT_ID;
 const NOMBA_CLIENT_SECRET = process.env.NOMBA_CLIENT_SECRET;
@@ -27,8 +28,20 @@ if (!NOMBA_CLIENT_ID || !NOMBA_CLIENT_SECRET || !NOMBA_ACCOUNT_ID) {
 }
 
 if (NOMBA_BASE_URL.includes("api.nomba.com")) {
-  console.error("WARNING: Running against PRODUCTION Nomba API");
+  if (process.env.NOMBA_PRODUCTION_CONFIRMED !== "true") {
+    console.error(
+      "ERROR: Base URL points to production (api.nomba.com). Set NOMBA_PRODUCTION_CONFIRMED=true to confirm."
+    );
+    process.exit(1);
+  }
+  console.error("NOTICE: Running against PRODUCTION Nomba API");
 }
+
+const spendingGuard = new SpendingGuard({
+  maxTransaction: Number(process.env.NOMBA_MAX_TRANSACTION) || 100_000,
+  sessionSpendingCap: Number(process.env.NOMBA_SESSION_SPENDING_CAP) || 500_000,
+  duplicateWindowMs: 60_000,
+});
 
 const nombaClient = new NombaClient({
   baseUrl: NOMBA_BASE_URL,
@@ -43,12 +56,12 @@ const server = new McpServer({
 });
 
 registerAccountTools(server, nombaClient);
-registerTransferTools(server, nombaClient);
-registerCheckoutTools(server, nombaClient);
+registerTransferTools(server, nombaClient, spendingGuard);
+registerCheckoutTools(server, nombaClient, spendingGuard);
 registerVirtualAccountTools(server, nombaClient);
 registerTransactionTools(server, nombaClient);
-registerBillTools(server, nombaClient);
-registerAirtimeTools(server, nombaClient);
+registerBillTools(server, nombaClient, spendingGuard);
+registerAirtimeTools(server, nombaClient, spendingGuard);
 registerSubAccountTools(server, nombaClient);
 registerBankListResource(server, nombaClient);
 

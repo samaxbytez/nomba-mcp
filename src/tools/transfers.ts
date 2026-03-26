@@ -1,11 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
+import { SpendingGuard } from "../spending-guard.js";
 
 export function registerTransferTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_list_banks",
@@ -13,6 +15,7 @@ export function registerTransferTools(
       title: "List Bank Codes",
       description:
         "Fetch the list of all Nigerian bank codes and names. Use this before making bank transfers to get the correct bankCode for the recipient's bank.",
+      annotations: { readOnlyHint: true, destructiveHint: false },
     },
     async () => {
       logToolCall("nomba_list_banks");
@@ -31,6 +34,7 @@ export function registerTransferTools(
       title: "Lookup Bank Account",
       description:
         "Validate a bank account by looking up the account holder's name. Always call this before initiating a bank transfer to confirm the recipient is correct.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       inputSchema: {
         accountNumber: z
           .string()
@@ -62,8 +66,9 @@ export function registerTransferTools(
       description:
         // Nomba is NGN-only
         "Transfer funds from the Nomba account to an external Nigerian bank account. Amount is in Naira (NGN). Always use nomba_lookup_bank_account first to verify the recipient.",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        amount: z.number().positive().describe("Amount in Naira to transfer"),
+        amount: z.number().positive().max(guard.config.maxTransaction).describe("Amount in Naira to transfer"),
         accountNumber: z
           .string()
           .length(10)
@@ -78,12 +83,14 @@ export function registerTransferTools(
     async ({ amount, accountNumber, bankCode, narration }) => {
       logToolCall("nomba_transfer_to_bank", { amount, accountNumber, bankCode });
       try {
+        guard.validate(amount, accountNumber);
         const result = await client.post("/v1/transfers/to-banks", {
           amount,
           accountNumber,
           bankCode,
           narration,
         });
+        guard.record(amount, accountNumber);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -98,11 +105,10 @@ export function registerTransferTools(
       description:
         // Nomba is NGN-only
         "Transfer funds between two Nomba accounts (e.g., parent to sub-account or between sub-accounts). Amount is in Naira (NGN).",
+      annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        amount: z.number().positive().describe("Amount in Naira to transfer"),
-        destinationAccountId: z
-          .string()
-          .describe("Destination Nomba account ID (UUID)"),
+        amount: z.number().positive().max(guard.config.maxTransaction).describe("Amount in Naira to transfer"),
+        destinationAccountId: safeId.describe("Destination Nomba account ID (UUID)"),
         narration: z
           .string()
           .optional()
@@ -112,10 +118,12 @@ export function registerTransferTools(
     async ({ amount, destinationAccountId, narration }) => {
       logToolCall("nomba_transfer_between_accounts", { amount, destinationAccountId });
       try {
+        guard.validate(amount, destinationAccountId);
         const result = await client.post(
           "/v1/transfers/between-accounts",
           { amount, destinationAccountId, narration }
         );
+        guard.record(amount, destinationAccountId);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

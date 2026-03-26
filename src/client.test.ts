@@ -84,23 +84,50 @@ describe("NombaClient - token management", () => {
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
-  it("refreshes token when expired", async () => {
+  it("refreshes token when expired using refresh endpoint", async () => {
     // Token that expires in 30s (within 60s buffer)
     const soonExpiry = new Date(Date.now() + 30_000).toISOString();
     const laterExpiry = new Date(Date.now() + 3600_000).toISOString();
 
     mockFetch
-      .mockResolvedValueOnce(mockOk(tokenResponse(soonExpiry))) // 1st token
+      .mockResolvedValueOnce(mockOk(tokenResponse(soonExpiry))) // 1st token (issue)
       .mockResolvedValueOnce(mockOk({ data: "r1" })) // 1st API call
-      .mockResolvedValueOnce(mockOk(tokenResponse(laterExpiry))) // 2nd token
+      .mockResolvedValueOnce(mockOk(tokenResponse(laterExpiry))) // refresh
       .mockResolvedValueOnce(mockOk({ data: "r2" })); // 2nd API call
 
     const client = createClient();
     await client.get("/v1/test1");
-    await client.get("/v1/test2"); // should trigger new token
+    await client.get("/v1/test2"); // should trigger refresh
 
-    // 2 token issues + 2 API calls = 4
+    // 1 token issue + 1 refresh + 2 API calls = 4
     expect(mockFetch).toHaveBeenCalledTimes(4);
+    // Second auth call should be refresh, not issue
+    const refreshCall = mockFetch.mock.calls[2];
+    expect(refreshCall[0]).toBe("https://sandbox.nomba.com/v1/auth/token/refresh");
+    const refreshBody = JSON.parse(refreshCall[1].body);
+    expect(refreshBody.grant_type).toBe("refresh_token");
+  });
+
+  it("falls back to issueToken when refresh fails", async () => {
+    const soonExpiry = new Date(Date.now() + 30_000).toISOString();
+    const laterExpiry = new Date(Date.now() + 3600_000).toISOString();
+
+    mockFetch
+      .mockResolvedValueOnce(mockOk(tokenResponse(soonExpiry))) // 1st token (issue)
+      .mockResolvedValueOnce(mockOk({ data: "r1" })) // 1st API call
+      .mockResolvedValueOnce(mockError(401, { code: "INVALID_REFRESH" })) // refresh fails
+      .mockResolvedValueOnce(mockOk(tokenResponse(laterExpiry))) // fallback issue
+      .mockResolvedValueOnce(mockOk({ data: "r2" })); // 2nd API call
+
+    const client = createClient();
+    await client.get("/v1/test1");
+    await client.get("/v1/test2");
+
+    // 1 issue + 1 failed refresh + 1 fallback issue + 2 API calls = 5
+    expect(mockFetch).toHaveBeenCalledTimes(5);
+    // Last auth call should be issue (fallback)
+    const fallbackCall = mockFetch.mock.calls[3];
+    expect(fallbackCall[0]).toBe("https://sandbox.nomba.com/v1/auth/token/issue");
   });
 
   it("concurrent requests share single token promise", async () => {
@@ -264,12 +291,19 @@ describe("NombaClient - HTTP methods", () => {
   });
 });
 
-describe("NombaClient - HTTPS warning", () => {
-  it("warns on non-HTTPS baseUrl", () => {
+describe("NombaClient - HTTPS enforcement", () => {
+  it("throws on non-HTTPS baseUrl by default", () => {
+    expect(() => createClient({ baseUrl: "http://localhost:3000" })).toThrow(
+      "NOMBA_BASE_URL must use HTTPS"
+    );
+  });
+
+  it("allows non-HTTPS when NOMBA_ALLOW_INSECURE=true", () => {
+    vi.stubEnv("NOMBA_ALLOW_INSECURE", "true");
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    createClient({ baseUrl: "http://localhost:3000" });
+    expect(() => createClient({ baseUrl: "http://localhost:3000" })).not.toThrow();
     expect(spy).toHaveBeenCalledWith(
-      expect.stringContaining("HTTPS")
+      expect.stringContaining("NOMBA_ALLOW_INSECURE")
     );
     spy.mockRestore();
   });
