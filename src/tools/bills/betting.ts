@@ -2,10 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../../client.js";
 import { jsonResponse, errorResponse, logToolCall } from "../../utils.js";
+import { SpendingGuard } from "../../spending-guard.js";
 
 export function registerBettingTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_get_betting_providers",
@@ -41,17 +43,20 @@ export function registerBettingTools(
         amount: z
           .number()
           .positive()
+          .max(guard.config.maxTransaction)
           .describe("Amount in Naira to fund"),
       },
     },
     async ({ customerId, providerCode, amount }) => {
       logToolCall("nomba_fund_betting_account", { customerId, providerCode, amount });
       try {
+        guard.validate(amount, customerId);
         const result = await client.post("/v1/bills/betting/pay", {
           customerId,
           providerCode,
           amount,
         });
+        guard.record(amount, customerId);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

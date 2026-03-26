@@ -2,10 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { SpendingGuard } from "../spending-guard.js";
 
 export function registerAirtimeTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_buy_airtime",
@@ -23,6 +25,7 @@ export function registerAirtimeTools(
         amount: z
           .number()
           .positive()
+          .max(guard.config.maxTransaction)
           .describe("Amount of airtime in Naira"),
         network: z
           .string()
@@ -35,9 +38,11 @@ export function registerAirtimeTools(
     async ({ phoneNumber, amount, network }) => {
       logToolCall("nomba_buy_airtime", { phoneNumber, amount, network });
       try {
+        guard.validate(amount, phoneNumber);
         const body: Record<string, unknown> = { phoneNumber, amount };
         if (network) body.network = network;
         const result = await client.post("/v1/bills/airtime/pay", body);
+        guard.record(amount, phoneNumber);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

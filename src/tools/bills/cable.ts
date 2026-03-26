@@ -2,10 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../../client.js";
 import { jsonResponse, errorResponse, logToolCall } from "../../utils.js";
+import { SpendingGuard } from "../../spending-guard.js";
 
 export function registerCableTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_get_cable_providers",
@@ -72,18 +74,21 @@ export function registerCableTools(
         amount: z
           .number()
           .positive()
+          .max(guard.config.maxTransaction)
           .describe("Amount in Naira to pay"),
       },
     },
     async ({ smartcardNumber, providerCode, productCode, amount }) => {
       logToolCall("nomba_pay_cable_subscription", { smartcardNumber, providerCode, productCode, amount });
       try {
+        guard.validate(amount, smartcardNumber);
         const result = await client.post("/v1/bills/cabletv/pay", {
           smartcardNumber,
           providerCode,
           productCode,
           amount,
         });
+        guard.record(amount, smartcardNumber);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

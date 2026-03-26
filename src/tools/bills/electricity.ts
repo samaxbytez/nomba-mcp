@@ -2,10 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../../client.js";
 import { jsonResponse, errorResponse, logToolCall } from "../../utils.js";
+import { SpendingGuard } from "../../spending-guard.js";
 
 export function registerElectricityTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_get_electricity_providers",
@@ -75,18 +77,21 @@ export function registerElectricityTools(
         amount: z
           .number()
           .positive()
+          .max(guard.config.maxTransaction)
           .describe("Amount in Naira to pay"),
       },
     },
     async ({ meterNumber, providerCode, meterType, amount }) => {
       logToolCall("nomba_buy_electricity", { meterNumber, providerCode, meterType, amount });
       try {
+        guard.validate(amount, meterNumber);
         const result = await client.post("/v1/bills/electricity/pay", {
           meterNumber,
           providerCode,
           meterType,
           amount,
         });
+        guard.record(amount, meterNumber);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

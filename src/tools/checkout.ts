@@ -3,10 +3,12 @@ import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
 import { redactResponse, CHECKOUT_RULES } from "../redact.js";
+import { SpendingGuard } from "../spending-guard.js";
 
 export function registerCheckoutTools(
   server: McpServer,
-  client: NombaClient
+  client: NombaClient,
+  guard: SpendingGuard
 ): void {
   server.registerTool(
     "nomba_create_checkout_order",
@@ -17,7 +19,7 @@ export function registerCheckoutTools(
         "Create a checkout payment order and get a payment link. The customer can use this link to pay via card, bank transfer, or USSD. Amount is in Naira (NGN).",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        amount: z.number().positive().describe("Payment amount in Naira"),
+        amount: z.number().positive().max(guard.config.maxTransaction).describe("Payment amount in Naira"),
         customerEmail: z
           .string()
           .email()
@@ -50,6 +52,7 @@ export function registerCheckoutTools(
     }) => {
       logToolCall("nomba_create_checkout_order", { amount, customerEmail });
       try {
+        guard.validate(amount, customerEmail);
         const result = await client.post("/v1/checkout/order", {
           order: {
             amount,
@@ -61,6 +64,7 @@ export function registerCheckoutTools(
           },
           tokenizeCard,
         });
+        guard.record(amount, customerEmail);
         return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -76,7 +80,7 @@ export function registerCheckoutTools(
         "Charge a previously saved/tokenized card. Use this for recurring payments or returning customers who saved their card during checkout.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        amount: z.number().positive().describe("Amount in Naira to charge"),
+        amount: z.number().positive().max(guard.config.maxTransaction).describe("Amount in Naira to charge"),
         tokenizedCardId: safeId.describe("The tokenized card ID from a previous checkout"),
         customerEmail: z
           .string()
@@ -87,10 +91,12 @@ export function registerCheckoutTools(
     async ({ amount, tokenizedCardId, customerEmail }) => {
       logToolCall("nomba_charge_tokenized_card", { amount, customerEmail });
       try {
+        guard.validate(amount, tokenizedCardId);
         const result = await client.post(
           "/v1/checkout/charge-tokenized-card",
           { amount, tokenizedCardId, customerEmail }
         );
+        guard.record(amount, tokenizedCardId);
         return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
