@@ -1,5 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
 import { redactResponse, PARENT_ACCOUNT_RULES } from "../redact.js";
