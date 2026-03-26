@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
+import { redactResponse, PARENT_ACCOUNT_RULES } from "../redact.js";
 
 export function registerAccountTools(
   server: McpServer,
@@ -19,7 +20,7 @@ export function registerAccountTools(
       logToolCall("nomba_get_parent_account");
       try {
         const result = await client.get("/v1/accounts/parent");
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, PARENT_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
       }

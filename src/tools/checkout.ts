@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
+import { redactResponse, CHECKOUT_RULES } from "../redact.js";
 
 export function registerCheckoutTools(
   server: McpServer,
@@ -60,7 +61,7 @@ export function registerCheckoutTools(
           },
           tokenizeCard,
         });
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -90,7 +91,7 @@ export function registerCheckoutTools(
           "/v1/checkout/charge-tokenized-card",
           { amount, tokenizedCardId, customerEmail }
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -145,7 +146,7 @@ export function registerCheckoutTools(
         const result = await client.get(
           `/v1/checkout/order/${orderReference}`
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
