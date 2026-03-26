@@ -3,6 +3,8 @@ import {
   redactResponse,
   PARENT_ACCOUNT_RULES,
   CHECKOUT_RULES,
+  TRANSACTION_RULES,
+  VIRTUAL_ACCOUNT_RULES,
 } from "./redact.js";
 
 describe("redactResponse", () => {
@@ -68,5 +70,40 @@ describe("redactResponse", () => {
     const data = { status: "ACTIVE", amount: 100 };
     const result = redactResponse(data, PARENT_ACCOUNT_RULES);
     expect(result).toEqual({ status: "ACTIVE", amount: 100 });
+  });
+
+  it("masks sender and recipient account numbers in transaction responses", () => {
+    const data = {
+      data: {
+        results: [
+          {
+            amount: 5000,
+            ktaSenderAccountNumber: "0123456789",
+            recipientAccountNumber: "9876543210",
+            recipientAccountName: "John Doe",
+          },
+        ],
+      },
+    };
+    const result = redactResponse(data, TRANSACTION_RULES) as any;
+    expect(result.data.results[0].ktaSenderAccountNumber).toBe("******6789");
+    expect(result.data.results[0].recipientAccountNumber).toBe("******3210");
+    expect(result.data.results[0].recipientAccountName).toBe("John Doe");
+    expect(result.data.results[0].amount).toBe(5000);
+  });
+
+  it("redacts BVN and masks bank account in virtual account responses", () => {
+    const data = {
+      data: {
+        accountId: "va-123",
+        bvn: "12345678901",
+        bankAccountNumber: "0123456789",
+        accountName: "Test VA",
+      },
+    };
+    const result = redactResponse(data, VIRTUAL_ACCOUNT_RULES) as any;
+    expect(result.data.bvn).toBe("***REDACTED***");
+    expect(result.data.bankAccountNumber).toBe("******6789");
+    expect(result.data.accountName).toBe("Test VA");
   });
 });

@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
+import { redactResponse, VIRTUAL_ACCOUNT_RULES } from "../redact.js";
 
 export function registerVirtualAccountTools(
   server: McpServer,
@@ -36,7 +37,7 @@ export function registerVirtualAccountTools(
         const body: Record<string, unknown> = { accountName };
         if (accountRef) body.accountRef = accountRef;
         const result = await client.post("/v1/accounts/virtual", body);
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -60,7 +61,7 @@ export function registerVirtualAccountTools(
         const result = await client.get(
           `/v1/accounts/virtual/${accountId}`
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -85,8 +86,9 @@ export function registerVirtualAccountTools(
         callbackUrl: z
           .string()
           .url()
+          .startsWith("https://", "Callback URL must use HTTPS")
           .optional()
-          .describe("Webhook URL for payment notifications on this account"),
+          .describe("HTTPS webhook URL for payment notifications on this account"),
       },
     },
     async ({ accountId, accountName, callbackUrl }) => {
@@ -99,7 +101,7 @@ export function registerVirtualAccountTools(
           `/v1/accounts/virtual/${accountId}`,
           body
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -124,7 +126,7 @@ export function registerVirtualAccountTools(
           `/v1/accounts/virtual/${accountId}/expire`,
           {}
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -157,7 +159,7 @@ export function registerVirtualAccountTools(
       try {
         const params = buildParams({ limit, cursor });
         const result = await client.get("/v1/accounts/virtual", params);
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
       }

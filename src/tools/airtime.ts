@@ -107,11 +107,13 @@ export function registerAirtimeTools(
     async ({ phoneNumber, dataPlanCode, network }) => {
       logToolCall("nomba_buy_data", { phoneNumber, dataPlanCode, network });
       try {
+        guard.validate(0, `${phoneNumber}:${dataPlanCode}`);
         const result = await client.post("/v1/bills/data/pay", {
           phoneNumber,
           dataPlanCode,
           network,
         });
+        guard.record(0, `${phoneNumber}:${dataPlanCode}`);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

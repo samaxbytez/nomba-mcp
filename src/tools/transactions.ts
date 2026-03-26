@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
+import { redactResponse, TRANSACTION_RULES } from "../redact.js";
 
 export function registerTransactionTools(
   server: McpServer,
@@ -41,7 +42,7 @@ export function registerTransactionTools(
       try {
         const params = buildParams({ limit, cursor, dateFrom, dateTo });
         const result = await client.get("/v1/transactions/bank", params);
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, TRANSACTION_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -66,7 +67,7 @@ export function registerTransactionTools(
           "/v1/transactions/accounts",
           { sessionId }
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, TRANSACTION_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -90,7 +91,7 @@ export function registerTransactionTools(
         const result = await client.get(
           `/v1/transactions/${transactionId}`
         );
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, TRANSACTION_RULES));
       } catch (error) {
         return errorResponse(error);
       }
@@ -135,7 +136,7 @@ export function registerTransactionTools(
       try {
         const params = buildParams({ type, limit, cursor, dateFrom, dateTo });
         const result = await client.get("/v1/transactions/filter", params);
-        return jsonResponse(result);
+        return jsonResponse(redactResponse(result, TRANSACTION_RULES));
       } catch (error) {
         return errorResponse(error);
       }

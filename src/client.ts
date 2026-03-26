@@ -1,4 +1,4 @@
-import { TOKEN_BUFFER_MS } from "./utils.js";
+import { TOKEN_BUFFER_MS, REQUEST_TIMEOUT_MS } from "./utils.js";
 
 interface NombaClientConfig {
   baseUrl: string;
@@ -86,6 +86,7 @@ export class NombaClient {
         client_id: this.config.clientId,
         client_secret: this.config.clientSecret,
       }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -120,6 +121,7 @@ export class NombaClient {
           grant_type: "refresh_token",
           refresh_token: this.tokenData.refreshToken,
         }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -179,6 +181,7 @@ export class NombaClient {
         "Content-Type": "application/json",
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {

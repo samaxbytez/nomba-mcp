@@ -15,6 +15,18 @@ export const CHECKOUT_RULES: RedactRule[] = [
   { field: "tokenKey", mode: "mask4" },
 ];
 
+export const TRANSACTION_RULES: RedactRule[] = [
+  { field: "ktaSenderAccountNumber", mode: "mask4" },
+  { field: "recipientAccountNumber", mode: "mask4" },
+  { field: "bankAccountNumber", mode: "mask4" },
+  { field: "bvn", mode: "full" },
+];
+
+export const VIRTUAL_ACCOUNT_RULES: RedactRule[] = [
+  { field: "bvn", mode: "full" },
+  { field: "bankAccountNumber", mode: "mask4" },
+];
+
 function mask4(value: string): string {
   if (value.length <= 4) return "****";
   return "*".repeat(value.length - 4) + value.slice(-4);

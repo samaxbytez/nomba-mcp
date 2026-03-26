@@ -27,7 +27,8 @@ export function registerCheckoutTools(
         callbackUrl: z
           .string()
           .url()
-          .describe("URL to redirect the customer to after payment"),
+          .startsWith("https://", "Callback URL must use HTTPS")
+          .describe("HTTPS URL to redirect the customer to after payment"),
         orderReference: z
           .string()
           .optional()
