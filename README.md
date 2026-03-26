@@ -1,9 +1,11 @@
-# nomba-mcp
+# @nomba-inc/mcp-server
 
-[![npm version](https://img.shields.io/npm/v/nomba-mcp.svg)](https://www.npmjs.com/package/nomba-mcp)
+[![npm version](https://img.shields.io/npm/v/@nomba-inc/mcp-server.svg)](https://www.npmjs.com/package/@nomba-inc/mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An MCP (Model Context Protocol) server for the [Nomba API](https://developer.nomba.com). Connect Claude and other AI assistants to your Nomba business account to check balances, send money, generate payment links, manage virtual accounts, buy airtime, pay utility bills, and more.
+An MCP (Model Context Protocol) server for the [Nomba API](https://developer.nomba.com). Connect any MCP-compatible AI assistant to your Nomba business account to check balances, send money, generate payment links, manage virtual accounts, buy airtime, pay utility bills, and more.
+
+Works with any MCP client including Claude Desktop, Claude Code, Cursor, Windsurf, Cline, and other MCP-compatible tools.
 
 Built on Nomba's v1 API with OAuth2 authentication, this server provides 41 tools covering accounts, sub-accounts, terminals, transfers, online checkout, virtual accounts, transactions, bills (electricity, cable TV, betting), and airtime/data.
 
@@ -22,6 +24,19 @@ Built on Nomba's v1 API with OAuth2 authentication, this server provides 41 tool
 - **Bills - Betting** - List providers, fund betting accounts
 - **Airtime & Data** - Buy airtime, list data plans, purchase data bundles (MTN, Airtel, Glo, 9mobile)
 
+## Security
+
+The server includes built-in security safeguards for financial operations:
+
+- **Spending limits** - Configurable per-transaction maximum and session spending cap
+- **Duplicate detection** - Blocks identical transactions (same amount + recipient) within 60 seconds
+- **PII redaction** - BVN, bank account numbers, and card tokens are masked before being returned to the AI
+- **Log redaction** - Sensitive fields (account numbers, phone numbers, emails) are masked in log output
+- **HTTPS enforcement** - Refuses to start with non-HTTPS base URLs unless explicitly overridden
+- **Production safeguard** - Requires explicit opt-in to use the production API
+- **Tool annotations** - All tools are annotated with `destructiveHint`/`readOnlyHint` so MCP clients can enforce confirmation dialogs on financial operations
+- **Path traversal protection** - Strict validation on all ID fields used in API paths
+
 ## Prerequisites
 
 You need **Nomba API credentials** from the [Nomba Developer Dashboard](https://developer.nomba.com):
@@ -30,21 +45,20 @@ You need **Nomba API credentials** from the [Nomba Developer Dashboard](https://
 2. **Client Secret** - your API client secret
 3. **Account ID** - your parent account ID (UUID format)
 
-Authentication is handled automatically. The server obtains an OAuth2 access token on the first request and refreshes it transparently before expiry.
+Authentication is handled automatically. The server obtains an OAuth2 access token on the first request and refreshes it transparently using the refresh token endpoint.
 
 ## Installation
 
 ### Using npx (recommended)
 
 ```bash
-npx nomba-mcp
+npx @nomba-inc/mcp-server
 ```
 
 ### Global install
 
 ```bash
-npm install -g nomba-mcp
-nomba-mcp
+npm install -g @nomba-inc/mcp-server
 ```
 
 ### Build from source
@@ -67,6 +81,10 @@ node build/index.js
 | `NOMBA_CLIENT_SECRET` | Yes | -- | Your client secret from the Nomba developer dashboard |
 | `NOMBA_ACCOUNT_ID` | Yes | -- | Your parent account ID (UUID format) |
 | `NOMBA_BASE_URL` | No | `https://sandbox.nomba.com` | API base URL. Set to `https://api.nomba.com` for production |
+| `NOMBA_MAX_TRANSACTION` | No | `100000` | Maximum amount (NGN) allowed per transaction |
+| `NOMBA_SESSION_SPENDING_CAP` | No | `500000` | Maximum cumulative spending (NGN) per session |
+| `NOMBA_PRODUCTION_CONFIRMED` | No | -- | Must be `true` when using `api.nomba.com` |
+| `NOMBA_ALLOW_INSECURE` | No | -- | Set to `true` to allow non-HTTPS URLs (local dev only) |
 
 ### Claude Desktop
 
@@ -77,12 +95,11 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "nomba": {
       "command": "npx",
-      "args": ["-y", "nomba-mcp"],
+      "args": ["-y", "@nomba-inc/mcp-server"],
       "env": {
         "NOMBA_CLIENT_ID": "your_client_id",
         "NOMBA_CLIENT_SECRET": "your_client_secret",
-        "NOMBA_ACCOUNT_ID": "your_account_id",
-        "NOMBA_BASE_URL": "https://api.nomba.com"
+        "NOMBA_ACCOUNT_ID": "your_account_id"
       }
     }
   }
@@ -98,36 +115,55 @@ Add to your project's `.mcp.json`:
   "mcpServers": {
     "nomba": {
       "command": "npx",
-      "args": ["-y", "nomba-mcp"],
+      "args": ["-y", "@nomba-inc/mcp-server"],
       "env": {
         "NOMBA_CLIENT_ID": "your_client_id",
         "NOMBA_CLIENT_SECRET": "your_client_secret",
-        "NOMBA_ACCOUNT_ID": "your_account_id",
-        "NOMBA_BASE_URL": "https://api.nomba.com"
+        "NOMBA_ACCOUNT_ID": "your_account_id"
       }
     }
   }
 }
 ```
 
-### Other MCP Clients
+### Cursor / Windsurf
+
+Add to your MCP settings (Settings > MCP Servers):
+
+```json
+{
+  "nomba": {
+    "command": "npx",
+    "args": ["-y", "@nomba-inc/mcp-server"],
+    "env": {
+      "NOMBA_CLIENT_ID": "your_client_id",
+      "NOMBA_CLIENT_SECRET": "your_client_secret",
+      "NOMBA_ACCOUNT_ID": "your_account_id"
+    }
+  }
+}
+```
+
+### Any MCP Client
 
 Set the environment variables and run:
 
 ```bash
-NOMBA_CLIENT_ID=your_id NOMBA_CLIENT_SECRET=your_secret NOMBA_ACCOUNT_ID=your_account npx nomba-mcp
+NOMBA_CLIENT_ID=your_id NOMBA_CLIENT_SECRET=your_secret NOMBA_ACCOUNT_ID=your_account npx @nomba-inc/mcp-server
 ```
+
+The server communicates over stdio using the standard MCP transport, so it works with any client that supports the MCP protocol.
 
 ## Architecture
 
 ```
 nomba-mcp/
 ├── src/
-│   ├── index.ts              # Entry point, server setup
-│   ├── client.ts             # Nomba API client (OAuth2 token management)
-│   ├── utils.ts              # Shared utilities (jsonResponse, errorResponse, etc.)
-│   ├── client.test.ts        # Client tests
-│   ├── utils.test.ts         # Utils tests
+│   ├── index.ts              # Entry point, server setup, spending guard config
+│   ├── client.ts             # Nomba API client (OAuth2 token + refresh management)
+│   ├── utils.ts              # Shared utilities (jsonResponse, logToolCall, safeId)
+│   ├── redact.ts             # Response field filtering (BVN, account numbers, card tokens)
+│   ├── spending-guard.ts     # Transaction limits, session caps, duplicate detection
 │   ├── resources/
 │   │   └── bank-list.ts      # Cached bank code list (MCP resource, 24h TTL)
 │   └── tools/
@@ -138,23 +174,24 @@ nomba-mcp/
 │       ├── virtual-accounts.ts  # Virtual account CRUD and listing
 │       ├── transactions.ts   # Transaction history, details, filtering, requery
 │       ├── airtime.ts        # Airtime and data bundles
-│       ├── bills/
-│       │   ├── index.ts      # Hub re-exporting all bill tool registrations
-│       │   ├── electricity.ts  # Electricity providers, meter lookup, token purchase
-│       │   ├── cable.ts      # Cable TV providers, smartcard lookup, subscriptions
-│       │   └── betting.ts    # Betting providers, account funding
-│       └── tools.test.ts     # Tool handler tests
+│       └── bills/
+│           ├── index.ts      # Hub re-exporting all bill tool registrations
+│           ├── electricity.ts  # Electricity providers, meter lookup, token purchase
+│           ├── cable.ts      # Cable TV providers, smartcard lookup, subscriptions
+│           └── betting.ts    # Betting providers, account funding
 ├── package.json
 ├── tsconfig.json
 └── README.md
 ```
 
 **Design decisions:**
-- Uses Pattern B (OAuth2 Client Credentials) with automatic token refresh and 401 auto-retry
+- Uses OAuth2 Client Credentials with automatic token refresh via `/v1/auth/token/refresh` and 401 auto-retry
 - A promise lock prevents concurrent token refresh when multiple tools execute in parallel
+- Financial tools are guarded by a shared `SpendingGuard` instance with configurable limits
+- Sensitive data (BVN, bank account numbers, card tokens) is redacted from API responses before reaching the AI
 - Bills are split into sub-files (electricity, cable, betting) with a hub for clean organization
 - Bank list is exposed as an MCP resource with 24h cache TTL
-- All tool handlers use consistent `logToolCall()` + `try/catch` + `jsonResponse()`/`errorResponse()` pattern
+- All tools annotated with MCP `destructiveHint`/`readOnlyHint` for client-side confirmation enforcement
 - Tool names prefixed with `nomba_` to avoid collisions with other MCP servers
 
 ## Tools Reference
@@ -163,7 +200,7 @@ nomba-mcp/
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_get_parent_account` | Get parent account details (ID, name, type, status, BVN, linked banks) | `GET /v1/accounts/parent` |
+| `nomba_get_parent_account` | Get parent account details (ID, name, type, status, linked banks) | `GET /v1/accounts/parent` |
 | `nomba_get_parent_balance` | Get current balance of parent account (NGN) | `GET /v1/accounts/parent/balance` |
 | `nomba_list_terminals` | List all POS terminals assigned to the account | `GET /v1/accounts/terminals` |
 | `nomba_assign_terminal` | Assign a POS terminal by ID and serial number | `POST /v1/terminals/assign` |
@@ -313,16 +350,25 @@ npx @modelcontextprotocol/inspector node build/index.js
 ### Adding new tools
 
 1. Create a new file in `src/tools/` or add to an existing category
-2. Follow the pattern: `registerXxxTools(server, client)` function
+2. Follow the pattern: `registerXxxTools(server, client)` or `registerXxxTools(server, client, guard)` for financial tools
 3. Import and call the register function in `src/index.ts`
-4. Add tests in `src/tools/tools.test.ts`
-5. Update this README
+4. Add `annotations` with appropriate `readOnlyHint`/`destructiveHint` values
+5. Add tests in `src/tools/tools.test.ts`
+6. Update this README
 
 ## Troubleshooting
 
 ### "Missing required environment variables"
 
 Ensure `NOMBA_CLIENT_ID`, `NOMBA_CLIENT_SECRET`, and `NOMBA_ACCOUNT_ID` are set in your MCP server config under the `env` key.
+
+### "NOMBA_BASE_URL must use HTTPS"
+
+The server requires HTTPS by default. For local development, set `NOMBA_ALLOW_INSECURE=true`.
+
+### "Base URL points to production"
+
+Set `NOMBA_PRODUCTION_CONFIRMED=true` to confirm you intend to use the production API.
 
 ### "Token issue failed (401)"
 
@@ -334,17 +380,24 @@ Your account may not have the required API permissions. Check your Nomba dashboa
 
 ### "Nomba API ... failed (429)"
 
-You've hit the rate limit (default 75 requests/second). Wait a moment and retry.
+You've hit the rate limit (default 15 POST requests per second). Wait a moment and retry.
+
+### "Amount exceeds per-transaction limit"
+
+The transaction exceeds `NOMBA_MAX_TRANSACTION` (default 100,000 NGN). Increase the limit via the environment variable if needed.
+
+### "Session spending cap exceeded"
+
+Cumulative spending has exceeded `NOMBA_SESSION_SPENDING_CAP` (default 500,000 NGN). Restart the server to reset the session counter, or increase the cap.
 
 ### Sandbox vs Production
 
-The server defaults to sandbox (`https://sandbox.nomba.com`). Set `NOMBA_BASE_URL=https://api.nomba.com` for production.
+The server defaults to sandbox (`https://sandbox.nomba.com`). To use production, set both `NOMBA_BASE_URL=https://api.nomba.com` and `NOMBA_PRODUCTION_CONFIRMED=true`.
 
-### Tools not appearing in Claude
+### Tools not appearing
 
-- **Claude Desktop:** Restart the application after updating config
-- **Claude Code:** Restart the MCP server or reload settings
-- Verify your config uses `"command": "npx"` with `"args": ["-y", "nomba-mcp"]`
+- Restart your MCP client after updating config
+- Verify your config uses `"command": "npx"` with `"args": ["-y", "@nomba-inc/mcp-server"]`
 
 ## License
 
