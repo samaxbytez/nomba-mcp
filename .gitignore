@@ -2,3 +2,7 @@ node_modules/
 build/
 .env
 *.js.map
+
+# local noise
+.DS_Store
+firebase-debug.log
