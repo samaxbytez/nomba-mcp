@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 export const TOKEN_BUFFER_MS = 60_000;
@@ -11,6 +12,17 @@ export const safeId = z
     /^[a-zA-Z0-9_-]+$/,
     "ID must contain only alphanumeric characters, hyphens, and underscores"
   );
+
+/** Telcos accepted by the airtime and data endpoints. */
+export const NETWORKS = ["MTN", "AIRTEL", "GLO", "9MOBILE"] as const;
+
+/**
+ * Nomba requires a unique merchantTxRef on every outflow and uses it to deduplicate.
+ * Callers can pass their own; otherwise we generate one and return it in the result.
+ */
+export function newMerchantTxRef(): string {
+  return `mcp-${randomUUID()}`;
+}
 
 export function jsonResponse(data: unknown) {
   return {
@@ -26,9 +38,7 @@ export function errorResponse(error: unknown) {
   };
 }
 
-export function buildParams(
-  obj: Record<string, unknown>
-): Record<string, string> {
+export function buildParams(obj: Record<string, unknown>): Record<string, string> {
   const params: Record<string, string> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v !== undefined && v !== null) params[k] = String(v);

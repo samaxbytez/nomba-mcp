@@ -1,8 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../../utils.js";
+import {
+  jsonResponse,
+  errorResponse,
+  logToolCall,
+  newMerchantTxRef,
+} from "../../utils.js";
 import { SpendingGuard } from "../../spending-guard.js";
+
+const meterNumber = z.string().describe("The electricity meter number");
+const providerCode = z
+  .string()
+  .describe("Electricity provider (disco) code from nomba_get_electricity_providers");
 
 export function registerElectricityTools(
   server: McpServer,
@@ -20,7 +30,7 @@ export function registerElectricityTools(
     async () => {
       logToolCall("nomba_get_electricity_providers");
       try {
-        const result = await client.get("/v1/bills/electricity/providers");
+        const result = await client.get("/v1/bill/electricity/discos");
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -35,25 +45,15 @@ export function registerElectricityTools(
       description:
         "Validate an electricity meter number and get the customer's name. Always use this before purchasing electricity to confirm the meter details.",
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
-      inputSchema: {
-        meterNumber: z.string().describe("The electricity meter number"),
-        providerCode: z
-          .string()
-          .describe(
-            "Electricity provider code from nomba_get_electricity_providers"
-          ),
-        meterType: z
-          .enum(["prepaid", "postpaid"])
-          .describe("Type of meter: prepaid or postpaid"),
-      },
+      inputSchema: { meterNumber, providerCode },
     },
-    async ({ meterNumber, providerCode, meterType }) => {
-      logToolCall("nomba_lookup_electricity_customer", { meterNumber, providerCode, meterType });
+    async ({ meterNumber, providerCode }) => {
+      logToolCall("nomba_lookup_electricity_customer", { meterNumber, providerCode });
       try {
-        const result = await client.post(
-          "/v1/bills/electricity/customer-lookup",
-          { meterNumber, providerCode, meterType }
-        );
+        const result = await client.get("/v1/bill/electricity/lookup", {
+          disco: providerCode,
+          customerId: meterNumber,
+        });
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -66,33 +66,43 @@ export function registerElectricityTools(
     {
       title: "Buy Electricity",
       description:
-        "Purchase electricity tokens for a prepaid meter or pay a postpaid electricity bill. Amount is in Naira.",
+        "Purchase electricity tokens for a prepaid meter or pay a postpaid electricity bill. Amount is in whole Naira.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        meterNumber: z.string().describe("The electricity meter number"),
-        providerCode: z.string().describe("Electricity provider code"),
+        meterNumber,
+        providerCode,
         meterType: z
           .enum(["prepaid", "postpaid"])
           .describe("Type of meter: prepaid or postpaid"),
         amount: z
           .number()
+          .int()
           .positive()
           .max(guard.config.maxTransaction)
-          .describe("Amount in Naira to pay"),
+          .describe("Amount in whole Naira to pay"),
+        payerName: z.string().optional().describe("Name of the person paying"),
       },
     },
-    async ({ meterNumber, providerCode, meterType, amount }) => {
-      logToolCall("nomba_buy_electricity", { meterNumber, providerCode, meterType, amount });
+    async ({ meterNumber, providerCode, meterType, amount, payerName }) => {
+      logToolCall("nomba_buy_electricity", {
+        meterNumber,
+        providerCode,
+        meterType,
+        amount,
+      });
       try {
         guard.validate(amount, meterNumber);
-        const result = await client.post("/v1/bills/electricity/pay", {
-          meterNumber,
-          providerCode,
+        const body: Record<string, unknown> = {
+          disco: providerCode,
+          customerId: meterNumber,
           meterType,
           amount,
-        });
+          merchantTxRef: newMerchantTxRef(),
+        };
+        if (payerName) body.payerName = payerName;
+        const result = await client.post("/v2/bill/electricity", body);
         guard.record(amount, meterNumber);
-        return jsonResponse(result);
+        return jsonResponse({ merchantTxRef: body.merchantTxRef, result });
       } catch (error) {
         return errorResponse(error);
       }

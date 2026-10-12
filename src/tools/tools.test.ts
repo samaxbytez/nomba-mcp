@@ -17,11 +17,9 @@ function createMockServer() {
   const resources = new Map<string, ToolHandler>();
   return {
     server: {
-      registerTool: vi.fn(
-        (name: string, _config: unknown, cb: ToolHandler) => {
-          tools.set(name, cb);
-        }
-      ),
+      registerTool: vi.fn((name: string, _config: unknown, cb: ToolHandler) => {
+        tools.set(name, cb);
+      }),
       registerResource: vi.fn(
         (_name: string, _uri: string, _meta: unknown, cb: ToolHandler) => {
           resources.set(_name, cb);
@@ -45,7 +43,9 @@ function createMockClient() {
   return {
     get: vi.fn().mockResolvedValue({ code: "00", data: "mock" }),
     post: vi.fn().mockResolvedValue({ code: "00", data: "mock" }),
+    put: vi.fn().mockResolvedValue({ code: "00", data: "mock" }),
     patch: vi.fn().mockResolvedValue({ code: "00", data: "mock" }),
+    delete: vi.fn().mockResolvedValue({ code: "00", data: "mock" }),
   } as unknown as NombaClient;
 }
 
@@ -158,61 +158,51 @@ describe("registerCheckoutTools - refund body", () => {
 });
 
 describe("registerVirtualAccountTools - buildParams", () => {
-  it("nomba_list_virtual_accounts passes params correctly", async () => {
+  it("nomba_list_virtual_accounts posts filters and passes paging as query params", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
     registerVirtualAccountTools(server, client);
 
     const handler = tools.get("nomba_list_virtual_accounts")!;
-    await handler({ limit: 10, cursor: undefined });
+    await handler({ limit: 10, cursor: undefined, accountName: "Daniel Scorsese" });
 
-    expect(client.get).toHaveBeenCalledWith("/v1/accounts/virtual", {
-      limit: "10",
-    });
+    expect(client.post).toHaveBeenCalledWith(
+      "/v1/accounts/virtual/list",
+      { accountName: "Daniel Scorsese" },
+      { limit: "10" }
+    );
   });
 });
 
-describe("registerAirtimeTools - conditional fields", () => {
-  it("nomba_buy_airtime includes network when provided", async () => {
+describe("registerAirtimeTools - request body", () => {
+  it("nomba_buy_airtime sends network and a generated merchantTxRef", async () => {
     const { server, tools } = createMockServer();
     const client = createMockClient();
     registerAirtimeTools(server, client, createMockGuard());
 
     const handler = tools.get("nomba_buy_airtime")!;
-    await handler({ phoneNumber: "08012345678", amount: 100, network: "MTN" });
-
-    expect(client.post).toHaveBeenCalledWith("/v1/bills/airtime/pay", {
+    const result = await handler({
       phoneNumber: "08012345678",
       amount: 100,
       network: "MTN",
     });
-  });
 
-  it("nomba_buy_airtime omits network when falsy", async () => {
-    const { server, tools } = createMockServer();
-    const client = createMockClient();
-    registerAirtimeTools(server, client, createMockGuard());
-
-    const handler = tools.get("nomba_buy_airtime")!;
-    await handler({
+    expect(client.post).toHaveBeenCalledWith("/v2/bill/topup", {
       phoneNumber: "08012345678",
       amount: 100,
-      network: undefined,
+      network: "MTN",
+      merchantTxRef: expect.stringMatching(/^mcp-/),
     });
-
-    expect(client.post).toHaveBeenCalledWith("/v1/bills/airtime/pay", {
-      phoneNumber: "08012345678",
-      amount: 100,
-    });
+    expect(JSON.parse(result.content[0].text).merchantTxRef).toMatch(/^mcp-/);
   });
 });
 
 describe("registerBillTools", () => {
-  it("registers all 8 bill tools", () => {
+  it("registers all 10 bill tools", () => {
     const { server } = createMockServer();
     const client = createMockClient();
     registerBillTools(server, client, createMockGuard());
-    expect(server.registerTool).toHaveBeenCalledTimes(8);
+    expect(server.registerTool).toHaveBeenCalledTimes(10);
   });
 });
 

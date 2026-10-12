@@ -1,12 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
+import {
+  jsonResponse,
+  errorResponse,
+  logToolCall,
+  buildParams,
+  safeId,
+} from "../utils.js";
 import { redactResponse, PARENT_ACCOUNT_RULES } from "../redact.js";
 
-export function registerAccountTools(
-  server: McpServer,
-  client: NombaClient
-): void {
+export function registerAccountTools(server: McpServer, client: NombaClient): void {
   server.registerTool(
     "nomba_get_parent_account",
     {
@@ -37,7 +41,7 @@ export function registerAccountTools(
     async () => {
       logToolCall("nomba_get_parent_balance");
       try {
-        const result = await client.get("/v1/accounts/parent/balance");
+        const result = await client.get("/v1/accounts/balance");
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -50,13 +54,29 @@ export function registerAccountTools(
     {
       title: "List Terminals",
       description:
-        "List all POS terminals assigned to the parent Nomba account. Returns terminal IDs, serial numbers, and labels.",
+        "List POS terminals assigned to the parent Nomba account. Returns terminal IDs, serial numbers, and labels. Supports pagination.",
       annotations: { readOnlyHint: true, destructiveHint: false },
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .max(50)
+          .optional()
+          .describe("Number of results per page (max 50)"),
+        cursor: z
+          .string()
+          .optional()
+          .describe("Pagination cursor from a previous response"),
+      },
     },
-    async () => {
-      logToolCall("nomba_list_terminals");
+    async ({ limit, cursor }) => {
+      logToolCall("nomba_list_terminals", { limit });
       try {
-        const result = await client.get("/v1/accounts/terminals");
+        const result = await client.get(
+          "/v1/accounts/terminals",
+          buildParams({ limit, cursor })
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -69,20 +89,23 @@ export function registerAccountTools(
     {
       title: "Assign Terminal",
       description:
-        "Assign a POS terminal to the parent Nomba account.",
+        "Assign a POS terminal to the parent Nomba account using its serial number.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        terminalId: safeId.describe("The terminal ID to assign"),
         serialNumber: safeId.describe("The terminal serial number"),
+        terminalLabel: z
+          .string()
+          .max(64)
+          .optional()
+          .describe("Optional label to show for the terminal"),
       },
     },
-    async ({ terminalId, serialNumber }) => {
-      logToolCall("nomba_assign_terminal", { terminalId, serialNumber });
+    async ({ serialNumber, terminalLabel }) => {
+      logToolCall("nomba_assign_terminal", { serialNumber });
       try {
-        const result = await client.post("/v1/terminals/assign", {
-          terminalId,
-          serialNumber,
-        });
+        const body: Record<string, unknown> = { serialNumber };
+        if (terminalLabel) body.terminalLabel = terminalLabel;
+        const result = await client.post("/v1/terminals/assign", body);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -95,17 +118,17 @@ export function registerAccountTools(
     {
       title: "Unassign Terminal",
       description:
-        "Unassign a POS terminal from the parent Nomba account.",
+        "Unassign a POS terminal from the parent Nomba account using its serial number.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        terminalId: safeId.describe("The terminal ID to unassign"),
+        serialNumber: safeId.describe("The terminal serial number"),
       },
     },
-    async ({ terminalId }) => {
-      logToolCall("nomba_unassign_terminal", { terminalId });
+    async ({ serialNumber }) => {
+      logToolCall("nomba_unassign_terminal", { serialNumber });
       try {
         const result = await client.post("/v1/terminals/unassign", {
-          terminalId,
+          serialNumber,
         });
         return jsonResponse(result);
       } catch (error) {

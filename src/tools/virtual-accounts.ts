@@ -1,8 +1,19 @@
+import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
+import {
+  jsonResponse,
+  errorResponse,
+  logToolCall,
+  buildParams,
+  safeId,
+} from "../utils.js";
 import { redactResponse, VIRTUAL_ACCOUNT_RULES } from "../redact.js";
+
+const identifier = safeId.describe(
+  "The virtual account's accountRef or its bank account number"
+);
 
 export function registerVirtualAccountTools(
   server: McpServer,
@@ -27,15 +38,24 @@ export function registerVirtualAccountTools(
           .max(64)
           .optional()
           .describe(
-            "Your unique reference for this account (16-64 characters)"
+            "Your unique reference for this account (16-64 characters). Generated if omitted."
           ),
+        expectedAmount: z
+          .number()
+          .positive()
+          .optional()
+          .describe("Only accept inflows of exactly this amount in Naira"),
       },
     },
-    async ({ accountName, accountRef }) => {
+    async ({ accountName, accountRef, expectedAmount }) => {
       logToolCall("nomba_create_virtual_account", { accountName });
       try {
-        const body: Record<string, unknown> = { accountName };
-        if (accountRef) body.accountRef = accountRef;
+        const body: Record<string, unknown> = {
+          accountName,
+          accountRef: accountRef ?? randomUUID().replaceAll("-", ""),
+          currency: "NGN",
+        };
+        if (expectedAmount !== undefined) body.expectedAmount = expectedAmount;
         const result = await client.post("/v1/accounts/virtual", body);
         return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
@@ -49,18 +69,14 @@ export function registerVirtualAccountTools(
     {
       title: "Get Virtual Account",
       description:
-        "Fetch details of a specific virtual account by its account ID. Returns account name, bank details, status, and balance.",
+        "Fetch details of a specific virtual account by its accountRef or bank account number. Returns account name, bank details, and status.",
       annotations: { readOnlyHint: true, destructiveHint: false },
-      inputSchema: {
-        accountId: safeId.describe("The virtual account ID (UUID)"),
-      },
+      inputSchema: { identifier },
     },
-    async ({ accountId }) => {
-      logToolCall("nomba_get_virtual_account", { accountId });
+    async ({ identifier }) => {
+      logToolCall("nomba_get_virtual_account", { identifier });
       try {
-        const result = await client.get(
-          `/v1/accounts/virtual/${accountId}`
-        );
+        const result = await client.get(`/v1/accounts/virtual/${identifier}`);
         return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -73,34 +89,38 @@ export function registerVirtualAccountTools(
     {
       title: "Update Virtual Account",
       description:
-        "Update the details of an existing virtual account, such as the account name or callback URL.",
+        "Update an existing virtual account's name, reference, or expected amount.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        accountId: safeId.describe("The virtual account ID (UUID) to update"),
+        identifier,
         accountName: z
           .string()
           .min(8)
           .max(64)
           .optional()
           .describe("New account name (8-64 characters)"),
-        callbackUrl: z
+        newAccountRef: z
           .string()
-          .url()
-          .startsWith("https://", "Callback URL must use HTTPS")
+          .min(16)
+          .max(64)
           .optional()
-          .describe("HTTPS webhook URL for payment notifications on this account"),
+          .describe("New accountRef (16-64 characters)"),
+        expectedAmount: z
+          .number()
+          .positive()
+          .optional()
+          .describe("Only accept inflows of exactly this amount in Naira"),
       },
     },
-    async ({ accountId, accountName, callbackUrl }) => {
-      logToolCall("nomba_update_virtual_account", { accountId });
+    async ({ identifier, accountName, newAccountRef, expectedAmount }) => {
+      logToolCall("nomba_update_virtual_account", { identifier });
       try {
         const body: Record<string, unknown> = {};
         if (accountName) body.accountName = accountName;
-        if (callbackUrl) body.callbackUrl = callbackUrl;
-        const result = await client.patch(
-          `/v1/accounts/virtual/${accountId}`,
-          body
-        );
+        if (newAccountRef) body.newAccountRef = newAccountRef;
+        // The update endpoint types expectedAmount as a string
+        if (expectedAmount !== undefined) body.expectedAmount = String(expectedAmount);
+        const result = await client.put(`/v1/accounts/virtual/${identifier}`, body);
         return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -115,17 +135,12 @@ export function registerVirtualAccountTools(
       description:
         "Expire/deactivate a virtual account so it can no longer receive payments. This action cannot be undone.",
       annotations: { readOnlyHint: false, destructiveHint: true },
-      inputSchema: {
-        accountId: safeId.describe("The virtual account ID (UUID) to expire"),
-      },
+      inputSchema: { identifier },
     },
-    async ({ accountId }) => {
-      logToolCall("nomba_expire_virtual_account", { accountId });
+    async ({ identifier }) => {
+      logToolCall("nomba_expire_virtual_account", { identifier });
       try {
-        const result = await client.post(
-          `/v1/accounts/virtual/${accountId}/expire`,
-          {}
-        );
+        const result = await client.delete(`/v1/accounts/virtual/${identifier}`);
         return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -138,9 +153,12 @@ export function registerVirtualAccountTools(
     {
       title: "List Virtual Accounts",
       description:
-        "List all virtual accounts under the parent Nomba account. Supports pagination with limit and cursor.",
+        "List or filter virtual accounts under the parent Nomba account. Supports pagination with limit and cursor.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
+        accountName: z.string().optional().describe("Filter by account name"),
+        accountRef: z.string().optional().describe("Filter by accountRef"),
+        expired: z.boolean().optional().describe("Filter by expired status"),
         limit: z
           .number()
           .int()
@@ -154,11 +172,18 @@ export function registerVirtualAccountTools(
           .describe("Pagination cursor from a previous response"),
       },
     },
-    async ({ limit, cursor }) => {
+    async ({ accountName, accountRef, expired, limit, cursor }) => {
       logToolCall("nomba_list_virtual_accounts", { limit, cursor });
       try {
-        const params = buildParams({ limit, cursor });
-        const result = await client.get("/v1/accounts/virtual", params);
+        const filter: Record<string, unknown> = {};
+        if (accountName) filter.accountName = accountName;
+        if (accountRef) filter.accountRef = accountRef;
+        if (expired !== undefined) filter.expired = expired;
+        const result = await client.post(
+          "/v1/accounts/virtual/list",
+          filter,
+          buildParams({ limit, cursor })
+        );
         return jsonResponse(redactResponse(result, VIRTUAL_ACCOUNT_RULES));
       } catch (error) {
         return errorResponse(error);

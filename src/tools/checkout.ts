@@ -5,6 +5,12 @@ import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
 import { redactResponse, CHECKOUT_RULES } from "../redact.js";
 import { SpendingGuard } from "../spending-guard.js";
 
+const callbackUrl = z
+  .string()
+  .url()
+  .startsWith("https://", "Callback URL must use HTTPS")
+  .describe("HTTPS URL to redirect the customer to after payment");
+
 export function registerCheckoutTools(
   server: McpServer,
   client: NombaClient,
@@ -16,27 +22,18 @@ export function registerCheckoutTools(
       title: "Create Checkout Order",
       description:
         // Nomba is NGN-only
-        "Create a checkout payment order and get a payment link. The customer can use this link to pay via card, bank transfer, or USSD. Amount is in Naira (NGN).",
+        "Create a checkout payment order and get a payment link (checkoutLink). The customer can use this link to pay via card, bank transfer, or USSD. Amount is in Naira (NGN).",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        amount: z.number().positive().max(guard.config.maxTransaction).describe("Payment amount in Naira"),
-        customerEmail: z
-          .string()
-          .email()
-          .describe("Customer's email address"),
-        callbackUrl: z
-          .string()
-          .url()
-          .startsWith("https://", "Callback URL must use HTTPS")
-          .describe("HTTPS URL to redirect the customer to after payment"),
-        orderReference: z
-          .string()
-          .optional()
-          .describe("Your unique order reference/ID"),
-        customerId: z
-          .string()
-          .optional()
-          .describe("Your internal customer identifier"),
+        amount: z
+          .number()
+          .positive()
+          .max(guard.config.maxTransaction)
+          .describe("Payment amount in Naira"),
+        customerEmail: z.string().email().describe("Customer's email address"),
+        callbackUrl,
+        orderReference: z.string().optional().describe("Your unique order reference/ID"),
+        customerId: z.string().optional().describe("Your internal customer identifier"),
         tokenizeCard: z
           .boolean()
           .optional()
@@ -81,22 +78,33 @@ export function registerCheckoutTools(
         "Charge a previously saved/tokenized card. Use this for recurring payments or returning customers who saved their card during checkout.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        amount: z.number().positive().max(guard.config.maxTransaction).describe("Amount in Naira to charge"),
-        tokenizedCardId: safeId.describe("The tokenized card ID from a previous checkout"),
-        customerEmail: z
-          .string()
-          .email()
-          .describe("Customer's email address"),
+        amount: z
+          .number()
+          .positive()
+          .max(guard.config.maxTransaction)
+          .describe("Amount in Naira to charge"),
+        tokenizedCardId: safeId.describe(
+          "The card's tokenKey, returned when the card was tokenized at checkout"
+        ),
+        customerEmail: z.string().email().describe("Customer's email address"),
+        callbackUrl,
+        orderReference: z.string().optional().describe("Your unique order reference/ID"),
       },
     },
-    async ({ amount, tokenizedCardId, customerEmail }) => {
+    async ({ amount, tokenizedCardId, customerEmail, callbackUrl, orderReference }) => {
       logToolCall("nomba_charge_tokenized_card", { amount, customerEmail });
       try {
         guard.validate(amount, tokenizedCardId);
-        const result = await client.post(
-          "/v1/checkout/charge-tokenized-card",
-          { amount, tokenizedCardId, customerEmail }
-        );
+        const result = await client.post("/v1/checkout/tokenized-card-payment", {
+          order: {
+            amount,
+            currency: "NGN",
+            customerEmail,
+            callbackUrl,
+            orderReference,
+          },
+          tokenKey: tokenizedCardId,
+        });
         guard.record(amount, tokenizedCardId);
         return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
@@ -118,9 +126,7 @@ export function registerCheckoutTools(
           .number()
           .positive()
           .optional()
-          .describe(
-            "Amount to refund in Naira. Omit for full refund."
-          ),
+          .describe("Amount to refund in Naira. Omit for full refund."),
       },
     },
     async ({ transactionId, amount }) => {
@@ -144,15 +150,18 @@ export function registerCheckoutTools(
         "Retrieve the details and status of a checkout transaction by its order reference.",
       annotations: { readOnlyHint: true, destructiveHint: false },
       inputSchema: {
-        orderReference: safeId.describe("The order reference from the checkout order creation"),
+        orderReference: safeId.describe(
+          "The order reference from the checkout order creation"
+        ),
       },
     },
     async ({ orderReference }) => {
       logToolCall("nomba_get_checkout_transaction", { orderReference });
       try {
-        const result = await client.get(
-          `/v1/checkout/order/${orderReference}`
-        );
+        const result = await client.get("/v1/checkout/transaction", {
+          idType: "ORDER_REFERENCE",
+          id: orderReference,
+        });
         return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -163,21 +172,18 @@ export function registerCheckoutTools(
   server.registerTool(
     "nomba_cancel_transaction",
     {
-      title: "Cancel Checkout Transaction",
+      title: "Cancel Checkout Order",
       description:
-        "Cancel an incomplete/pending checkout transaction. Only works for transactions that have not been completed.",
+        "Cancel an incomplete or pending checkout order. Only works for orders that have not been paid.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        orderReference: safeId.describe("The order reference of the transaction to cancel"),
+        orderReference: safeId.describe("The order reference of the order to cancel"),
       },
     },
     async ({ orderReference }) => {
       logToolCall("nomba_cancel_transaction", { orderReference });
       try {
-        const result = await client.post(
-          "/v1/checkout/cancel-transaction",
-          { orderReference }
-        );
+        const result = await client.post("/v1/checkout/order/cancel", { orderReference });
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

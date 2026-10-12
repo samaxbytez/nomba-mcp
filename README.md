@@ -7,21 +7,21 @@ An MCP (Model Context Protocol) server for the [Nomba API](https://developer.nom
 
 Works with any MCP client including Claude Desktop, Claude Code, Cursor, Windsurf, Cline, and other MCP-compatible tools.
 
-Built on Nomba's v1 API with OAuth2 authentication, this server provides 41 tools covering accounts, sub-accounts, terminals, transfers, online checkout, virtual accounts, transactions, bills (electricity, cable TV, betting), and airtime/data.
+Built on Nomba's API with OAuth2 authentication, this server provides 39 tools covering accounts, sub-accounts, terminals, transfers, online checkout, virtual accounts, transactions, bills (electricity, cable TV, betting), and airtime/data. Every tool's endpoint is pinned to the [official API reference](https://developer.nomba.com/nomba-api-reference/introduction) by a contract test (`src/tools/endpoints.test.ts`).
 
 > **Note:** The server defaults to the **sandbox** environment. All transactions in sandbox mode use test data and do not move real money. Set `NOMBA_BASE_URL=https://api.nomba.com` only when you are ready to go live.
 
 ## Features
 
 - **Accounts & Terminals** - View parent account details, check balance, list/assign/unassign POS terminals
-- **Sub-Accounts** - Create, list, update, suspend, and reactivate child accounts with independent balances
+- **Sub-Accounts** - Look up sub-account details, balances and terminals (sub-accounts are created in the Nomba dashboard)
 - **Transfers** - Bank list lookup, account validation, bank transfers, internal transfers between Nomba accounts
 - **Online Checkout** - Payment links, tokenized card charges, refunds, transaction status, cancellation
 - **Virtual Accounts** - Create, update, expire, and list virtual bank accounts for receiving payments
-- **Transactions** - Transaction history, filtering by type/date, single transaction details, status requery
+- **Transactions** - Transaction history, filtering by status/type/source/date, single transaction lookup, status requery
 - **Bills - Electricity** - List providers, validate meter numbers, purchase tokens (prepaid/postpaid)
-- **Bills - Cable TV** - List providers, validate smartcards, pay subscriptions (DSTV, GOtv, Startimes)
-- **Bills - Betting** - List providers, fund betting accounts
+- **Bills - Cable TV** - List providers and plans, validate smartcards, pay subscriptions (DSTV, GOtv, Startimes, Showmax)
+- **Bills - Betting** - List providers, validate customers, fund betting accounts
 - **Airtime & Data** - Buy airtime, list data plans, purchase data bundles (MTN, Airtel, Glo, 9mobile)
 
 ## Security
@@ -174,10 +174,10 @@ nomba-mcp/
 │   │   └── bank-list.ts      # Cached bank code list (MCP resource, 24h TTL)
 │   └── tools/
 │       ├── accounts.ts       # Parent account details, balance, terminals
-│       ├── sub-accounts.ts   # Sub-account CRUD, balance, suspend, reactivate
+│       ├── sub-accounts.ts   # Sub-account details, balance, terminals
 │       ├── transfers.ts      # Bank list, account lookup, bank/internal transfers
 │       ├── checkout.ts       # Payment links, tokenized cards, refunds
-│       ├── virtual-accounts.ts  # Virtual account CRUD and listing
+│       ├── virtual-accounts.ts  # Virtual account create, update, expire, filter
 │       ├── transactions.ts   # Transaction history, details, filtering, requery
 │       ├── airtime.ts        # Airtime and data bundles
 │       └── bills/
@@ -202,96 +202,96 @@ nomba-mcp/
 
 ## Tools Reference
 
+Outflow tools (transfers, airtime, data, bills) send a `merchantTxRef`, which Nomba uses to deduplicate. Pass your own or let the server generate one; it's returned alongside the API result.
+
 ### Accounts & Terminals (5 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
 | `nomba_get_parent_account` | Get parent account details (ID, name, type, status, linked banks) | `GET /v1/accounts/parent` |
-| `nomba_get_parent_balance` | Get current balance of parent account (NGN) | `GET /v1/accounts/parent/balance` |
-| `nomba_list_terminals` | List all POS terminals assigned to the account | `GET /v1/accounts/terminals` |
-| `nomba_assign_terminal` | Assign a POS terminal by ID and serial number | `POST /v1/terminals/assign` |
-| `nomba_unassign_terminal` | Unassign a POS terminal | `POST /v1/terminals/unassign` |
+| `nomba_get_parent_balance` | Get current balance of parent account (NGN) | `GET /v1/accounts/balance` |
+| `nomba_list_terminals` | List POS terminals assigned to the account, paginated | `GET /v1/accounts/terminals` |
+| `nomba_assign_terminal` | Assign a POS terminal by serial number | `POST /v1/terminals/assign` |
+| `nomba_unassign_terminal` | Unassign a POS terminal by serial number | `POST /v1/terminals/unassign` |
 
-### Sub-Accounts (7 tools)
+### Sub-Accounts (3 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_create_sub_account` | Create a new sub-account with name, optional email/phone | `POST /v1/accounts` |
-| `nomba_list_sub_accounts` | List all sub-accounts with pagination | `GET /v1/accounts` |
-| `nomba_get_sub_account` | Get details of a specific sub-account | `GET /v1/accounts/{accountId}` |
-| `nomba_get_sub_account_balance` | Get current balance of a sub-account | `GET /v1/accounts/{accountId}/balance` |
-| `nomba_update_sub_account` | Update sub-account name, email, or phone | `PUT /v1/accounts/{accountId}` |
-| `nomba_suspend_sub_account` | Suspend a sub-account (blocks all transactions) | `PUT /v1/accounts/{accountId}/suspend` |
-| `nomba_reactivate_sub_account` | Reactivate a previously suspended sub-account | `PUT /v1/accounts/{accountId}/reactivate` |
+| `nomba_get_sub_account` | Get a sub-account's details by its accountRef | `GET /v1/accounts/sub-account-details` |
+| `nomba_get_sub_account_balance` | Get current balance of a sub-account | `GET /v1/accounts/{subAccountId}/balance` |
+| `nomba_list_sub_account_terminals` | List terminals assigned to a sub-account | `GET /v1/accounts/{subAccountId}/terminals` |
 
 ### Transfers (4 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
 | `nomba_list_banks` | Fetch all Nigerian bank codes and names | `GET /v1/transfers/banks` |
-| `nomba_lookup_bank_account` | Validate account number and get holder name (call before transfers) | `POST /v1/transfers/bank-account-lookup` |
-| `nomba_transfer_to_bank` | Transfer funds to an external Nigerian bank account | `POST /v1/transfers/to-banks` |
-| `nomba_transfer_between_accounts` | Transfer funds between Nomba accounts (e.g., parent to sub-account) | `POST /v1/transfers/between-accounts` |
+| `nomba_lookup_bank_account` | Validate account number and get holder name (call before transfers) | `POST /v1/transfers/bank/lookup` |
+| `nomba_transfer_to_bank` | Transfer funds to an external Nigerian bank account | `POST /v2/transfers/bank` |
+| `nomba_transfer_between_accounts` | Transfer funds to another Nomba account (wallet/P2P) | `POST /v2/transfers/wallet` |
 
 ### Online Checkout (5 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
 | `nomba_create_checkout_order` | Create payment link (card, bank transfer, or USSD) | `POST /v1/checkout/order` |
-| `nomba_charge_tokenized_card` | Charge a previously saved card for recurring payments | `POST /v1/checkout/charge-tokenized-card` |
+| `nomba_charge_tokenized_card` | Charge a previously saved card for recurring payments | `POST /v1/checkout/tokenized-card-payment` |
 | `nomba_refund_transaction` | Process full or partial refund for a checkout transaction | `POST /v1/checkout/refund` |
-| `nomba_get_checkout_transaction` | Get checkout transaction details and status | `GET /v1/checkout/order/{orderReference}` |
-| `nomba_cancel_transaction` | Cancel an incomplete/pending checkout transaction | `POST /v1/checkout/cancel-transaction` |
+| `nomba_get_checkout_transaction` | Get checkout transaction details and status | `GET /v1/checkout/transaction` |
+| `nomba_cancel_transaction` | Cancel an incomplete/pending checkout order | `POST /v1/checkout/order/cancel` |
 
 ### Virtual Accounts (5 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_create_virtual_account` | Create a new virtual bank account | `POST /v1/accounts/virtual` |
-| `nomba_get_virtual_account` | Get virtual account details and balance | `GET /v1/accounts/virtual/{accountId}` |
-| `nomba_update_virtual_account` | Update account name or callback URL | `PATCH /v1/accounts/virtual/{accountId}` |
-| `nomba_expire_virtual_account` | Permanently deactivate a virtual account | `POST /v1/accounts/virtual/{accountId}/expire` |
-| `nomba_list_virtual_accounts` | List all virtual accounts with pagination | `GET /v1/accounts/virtual` |
+| `nomba_create_virtual_account` | Create a new virtual bank account (optional expected amount) | `POST /v1/accounts/virtual` |
+| `nomba_get_virtual_account` | Get virtual account details by accountRef or account number | `GET /v1/accounts/virtual/{identifier}` |
+| `nomba_update_virtual_account` | Update name, accountRef or expected amount | `PUT /v1/accounts/virtual/{identifier}` |
+| `nomba_expire_virtual_account` | Permanently deactivate a virtual account | `DELETE /v1/accounts/virtual/{identifier}` |
+| `nomba_list_virtual_accounts` | List or filter virtual accounts, paginated | `POST /v1/accounts/virtual/list` |
 
 ### Transactions (4 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_list_bank_transactions` | List transaction history with optional date filtering | `GET /v1/transactions/bank` |
-| `nomba_requery_transaction` | Check transaction status by session ID | `POST /v1/transactions/accounts` |
-| `nomba_get_transaction` | Get full details of a single transaction | `GET /v1/transactions/{transactionId}` |
-| `nomba_filter_transactions` | Filter transactions by type (CREDIT/DEBIT), date range | `GET /v1/transactions/filter` |
+| `nomba_list_bank_transactions` | List credit/debit transactions with optional date filtering | `GET /v1/transactions/bank` |
+| `nomba_requery_transaction` | Confirm transaction status by session ID | `GET /v1/transactions/requery/{sessionId}` |
+| `nomba_get_transaction` | Get one transaction by transaction ID or merchantTxRef | `GET /v1/transactions/accounts/single` |
+| `nomba_filter_transactions` | Filter transactions by status, type, source, terminal, reference, date | `POST /v1/transactions/accounts` |
 
 ### Bills - Electricity (3 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_get_electricity_providers` | List available electricity distribution companies | `GET /v1/bills/electricity/providers` |
-| `nomba_lookup_electricity_customer` | Validate meter number and get customer name | `POST /v1/bills/electricity/customer-lookup` |
-| `nomba_buy_electricity` | Purchase electricity tokens (prepaid) or pay bill (postpaid) | `POST /v1/bills/electricity/pay` |
+| `nomba_get_electricity_providers` | List available electricity distribution companies | `GET /v1/bill/electricity/discos` |
+| `nomba_lookup_electricity_customer` | Validate meter number and get customer name | `GET /v1/bill/electricity/lookup` |
+| `nomba_buy_electricity` | Purchase electricity tokens (prepaid) or pay bill (postpaid) | `POST /v2/bill/electricity` |
 
-### Bills - Cable TV (3 tools)
-
-| Tool | Description | API Endpoint |
-|------|-------------|-------------|
-| `nomba_get_cable_providers` | List available cable TV providers (DSTV, GOtv, Startimes) | `GET /v1/bills/cabletv/providers` |
-| `nomba_lookup_cable_customer` | Validate smartcard/IUC number and get customer name | `POST /v1/bills/cabletv/customer-lookup` |
-| `nomba_pay_cable_subscription` | Pay for a cable TV subscription | `POST /v1/bills/cabletv/pay` |
-
-### Bills - Betting (2 tools)
+### Bills - Cable TV (4 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_get_betting_providers` | List available betting platforms | `GET /v1/bills/betting/providers` |
-| `nomba_fund_betting_account` | Fund a customer's betting account | `POST /v1/bills/betting/pay` |
+| `nomba_get_cable_providers` | List supported cable TV providers (DSTV, GOtv, Startimes, Showmax) | none (documented values) |
+| `nomba_list_cable_plans` | List plans and prices for a provider | `GET /v1/bill/cableTvProduct` |
+| `nomba_lookup_cable_customer` | Validate smartcard/IUC number and get customer name | `GET /v1/bill/cabletv/lookup` |
+| `nomba_pay_cable_subscription` | Pay for a cable TV subscription | `POST /v2/bill/cabletv` |
+
+### Bills - Betting (3 tools)
+
+| Tool | Description | API Endpoint |
+|------|-------------|-------------|
+| `nomba_get_betting_providers` | List available betting platforms | `GET /v1/bill/betting/providers` |
+| `nomba_lookup_betting_customer` | Validate a betting account and get customer name | `GET /v1/bill/betting/lookup` |
+| `nomba_fund_betting_account` | Fund a customer's betting account | `POST /v2/bill/betting` |
 
 ### Airtime & Data (3 tools)
 
 | Tool | Description | API Endpoint |
 |------|-------------|-------------|
-| `nomba_buy_airtime` | Purchase airtime for a Nigerian phone number (MTN, Airtel, Glo, 9mobile) | `POST /v1/bills/airtime/pay` |
-| `nomba_list_data_plans` | List available data plans for a network provider | `GET /v1/bills/data/plans` |
-| `nomba_buy_data` | Purchase a data bundle for a phone number | `POST /v1/bills/data/pay` |
+| `nomba_buy_airtime` | Purchase airtime for a Nigerian phone number (MTN, Airtel, Glo, 9mobile) | `POST /v2/bill/topup` |
+| `nomba_list_data_plans` | List available data plans for a network provider | `GET /v1/bill/data-plan/{telco}` |
+| `nomba_buy_data` | Purchase a data bundle for a phone number | `POST /v2/bill/data` |
 
 ## Resources
 
@@ -302,17 +302,17 @@ A cached list of all Nigerian bank codes and names in JSON format. Fetched once 
 ## Example Prompts
 
 - "What's my Nomba account balance?"
-- "List all my sub-accounts"
+- "What's the balance on sub-account sub_123?"
 - "Transfer 5000 Naira to account 0123456789 at GTBank"
 - "Look up account 0123456789 at Access Bank"
 - "Create a payment link for 10,000 Naira for customer@email.com"
 - "Show me my last 10 transactions"
-- "Show me all credit transactions from January 2024"
+- "Show me all failed transfers from January 2024"
 - "Create a virtual account named 'John Doe Payments'"
 - "Buy 1000 Naira airtime for 08012345678"
 - "What MTN data plans are available?"
 - "Buy 5000 Naira electricity for meter 12345678 on Ikeja Electric prepaid"
-- "List cable TV providers"
+- "What DSTV plans are available?"
 
 ## Development
 
