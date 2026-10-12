@@ -1,8 +1,21 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import {
+  jsonResponse,
+  errorResponse,
+  logToolCall,
+  NETWORKS,
+  newMerchantTxRef,
+} from "../utils.js";
 import { SpendingGuard } from "../spending-guard.js";
+
+const phoneNumber = z
+  .string()
+  .describe("Nigerian phone number (e.g., 08012345678 or 2348012345678)");
+const network = z
+  .enum(NETWORKS)
+  .describe("Network provider: MTN, AIRTEL, GLO or 9MOBILE");
 
 export function registerAirtimeTools(
   server: McpServer,
@@ -14,36 +27,26 @@ export function registerAirtimeTools(
     {
       title: "Buy Airtime",
       description:
-        "Purchase airtime/credit for a Nigerian phone number. Amount is in Naira. Supports all major networks (MTN, Airtel, Glo, 9mobile).",
+        "Purchase airtime/credit for a Nigerian phone number from the parent account. Amount is in Naira.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        phoneNumber: z
-          .string()
-          .describe(
-            "Nigerian phone number (e.g., 08012345678 or 2348012345678)"
-          ),
+        phoneNumber,
         amount: z
           .number()
           .positive()
           .max(guard.config.maxTransaction)
           .describe("Amount of airtime in Naira"),
-        network: z
-          .string()
-          .optional()
-          .describe(
-            "Network provider (e.g., MTN, AIRTEL, GLO, 9MOBILE). Auto-detected if omitted."
-          ),
+        network,
       },
     },
     async ({ phoneNumber, amount, network }) => {
       logToolCall("nomba_buy_airtime", { phoneNumber, amount, network });
       try {
         guard.validate(amount, phoneNumber);
-        const body: Record<string, unknown> = { phoneNumber, amount };
-        if (network) body.network = network;
-        const result = await client.post("/v1/bills/airtime/pay", body);
+        const body = { phoneNumber, amount, network, merchantTxRef: newMerchantTxRef() };
+        const result = await client.post("/v2/bill/topup", body);
         guard.record(amount, phoneNumber);
-        return jsonResponse(result);
+        return jsonResponse({ merchantTxRef: body.merchantTxRef, result });
       } catch (error) {
         return errorResponse(error);
       }
@@ -55,23 +58,14 @@ export function registerAirtimeTools(
     {
       title: "List Data Plans",
       description:
-        "Fetch available data bundle plans for a specific network provider. Returns plan names, data amounts, prices, and plan codes needed for purchasing.",
+        "Fetch available data bundle plans for a network provider. Returns plan names, prices, and the productId needed to buy a bundle.",
       annotations: { readOnlyHint: true, destructiveHint: false },
-      inputSchema: {
-        network: z
-          .string()
-          .describe(
-            "Network provider (e.g., MTN, AIRTEL, GLO, 9MOBILE)"
-          ),
-      },
+      inputSchema: { network },
     },
     async ({ network }) => {
       logToolCall("nomba_list_data_plans", { network });
       try {
-        const result = await client.get(
-          "/v1/bills/data/plans",
-          { network }
-        );
+        const result = await client.get(`/v1/bill/data-plan/${network.toLowerCase()}`);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -84,37 +78,35 @@ export function registerAirtimeTools(
     {
       title: "Buy Data Bundle",
       description:
-        "Purchase a data bundle for a Nigerian phone number. Use nomba_list_data_plans first to get available plans and their codes.",
+        "Purchase a data bundle for a Nigerian phone number. Use nomba_list_data_plans first to get the plan's productId and price.",
       annotations: { readOnlyHint: false, destructiveHint: true },
       inputSchema: {
-        phoneNumber: z
-          .string()
-          .describe(
-            "Nigerian phone number (e.g., 08012345678 or 2348012345678)"
-          ),
+        phoneNumber,
         dataPlanCode: z
           .string()
-          .describe(
-            "Data plan code from nomba_list_data_plans"
-          ),
-        network: z
-          .string()
-          .describe(
-            "Network provider (e.g., MTN, AIRTEL, GLO, 9MOBILE)"
-          ),
+          .describe("The plan's productId from nomba_list_data_plans"),
+        amount: z
+          .number()
+          .positive()
+          .max(guard.config.maxTransaction)
+          .describe("The plan's price in Naira, from nomba_list_data_plans"),
+        network,
       },
     },
-    async ({ phoneNumber, dataPlanCode, network }) => {
+    async ({ phoneNumber, dataPlanCode, amount, network }) => {
       logToolCall("nomba_buy_data", { phoneNumber, dataPlanCode, network });
       try {
-        guard.validate(0, `${phoneNumber}:${dataPlanCode}`);
-        const result = await client.post("/v1/bills/data/pay", {
+        guard.validate(amount, `${phoneNumber}:${dataPlanCode}`);
+        const body = {
+          productId: dataPlanCode,
+          amount,
           phoneNumber,
-          dataPlanCode,
           network,
-        });
-        guard.record(0, `${phoneNumber}:${dataPlanCode}`);
-        return jsonResponse(result);
+          merchantTxRef: newMerchantTxRef(),
+        };
+        const result = await client.post("/v2/bill/data", body);
+        guard.record(amount, `${phoneNumber}:${dataPlanCode}`);
+        return jsonResponse({ merchantTxRef: body.merchantTxRef, result });
       } catch (error) {
         return errorResponse(error);
       }
