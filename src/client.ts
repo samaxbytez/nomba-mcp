@@ -72,6 +72,21 @@ export class NombaClient {
     }
   }
 
+  // Only relative API paths may be requested, and the resolved URL must stay on
+  // the configured origin and under its base path (the regex alone misses %2e%2e/).
+  private resolveUrl(path: string): URL {
+    if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\") || path.includes("../") || /%2e|%2f|%5c/i.test(path)) {
+      throw new Error("Invalid API path");
+    }
+    const base = new URL(this.config.baseUrl);
+    const url = new URL(path, base);
+    const basePath = base.pathname.replace(/\/$/, "");
+    if (url.origin !== base.origin || !(url.pathname + "/").startsWith(basePath + "/")) {
+      throw new Error("Invalid API path");
+    }
+    return url;
+  }
+
   private async issueToken(): Promise<void> {
     const url = `${this.config.baseUrl}/v1/auth/token/issue`;
 
@@ -165,7 +180,7 @@ export class NombaClient {
     _retry = false
   ): Promise<T> {
     const token = await this.ensureToken();
-    const url = new URL(path, this.config.baseUrl);
+    const url = this.resolveUrl(path);
 
     if (params) {
       for (const [k, v] of Object.entries(params)) {
@@ -189,6 +204,15 @@ export class NombaClient {
       if (response.status === 401 && !_retry) {
         this.tokenData = null;
         return this.request<T>(method, path, body, params, true);
+      }
+
+      if (response.status === 429) {
+        const retryAfter = response.headers?.get("retry-after");
+        throw new NombaApiError(
+          429,
+          "RATE_LIMITED",
+          retryAfter ? `Rate limited, retry after ${retryAfter}s` : "Rate limited"
+        );
       }
 
       const errorBody = await response.text();

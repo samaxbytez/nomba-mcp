@@ -87,6 +87,7 @@ node build/index.js
 | `NOMBA_CLIENT_SECRET` | Yes | -- | Your client secret from the Nomba developer dashboard |
 | `NOMBA_ACCOUNT_ID` | Yes | -- | Your parent account ID (UUID format) |
 | `NOMBA_BASE_URL` | No | `https://sandbox.nomba.com` | API base URL. Set to `https://api.nomba.com` for production |
+| `NOMBA_ENABLE_SENSITIVE_TOOLS` | No | _(off)_ | Set to `true` to register money-moving and account-changing tools (transfers, airtime, data, bills, betting, refunds, card charges, checkout, sub/virtual account changes, terminals). Off by default |
 | `NOMBA_MAX_TRANSACTION` | No | `100000` | Maximum amount (NGN) allowed per transaction |
 | `NOMBA_SESSION_SPENDING_CAP` | No | `500000` | Maximum cumulative spending (NGN) per session |
 | `NOMBA_PRODUCTION_CONFIRMED` | No | -- | Must be `true` when using `api.nomba.com` |

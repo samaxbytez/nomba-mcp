@@ -13,6 +13,8 @@ import { registerAirtimeTools } from "./tools/airtime.js";
 import { registerSubAccountTools } from "./tools/sub-accounts.js";
 import { registerBankListResource } from "./resources/bank-list.js";
 import { SpendingGuard } from "./spending-guard.js";
+import { withToolPolicy } from "./policy.js";
+import { VERSION } from "./version.js";
 
 const NOMBA_CLIENT_ID = process.env.NOMBA_CLIENT_ID;
 const NOMBA_CLIENT_SECRET = process.env.NOMBA_CLIENT_SECRET;
@@ -50,10 +52,16 @@ const nombaClient = new NombaClient({
   accountId: NOMBA_ACCOUNT_ID,
 });
 
-const server = new McpServer({
-  name: "nomba-mcp",
-  version: "1.0.0",
-});
+const allowSensitive = process.env.NOMBA_ENABLE_SENSITIVE_TOOLS === "true";
+const server = withToolPolicy(
+  new McpServer({ name: "nomba-mcp", version: VERSION }),
+  { allowSensitive }
+);
+if (!allowSensitive) {
+  console.error(
+    "Money-moving and account-changing tools are disabled. Set NOMBA_ENABLE_SENSITIVE_TOOLS=true to enable them."
+  );
+}
 
 registerAccountTools(server, nombaClient);
 registerTransferTools(server, nombaClient, spendingGuard);
