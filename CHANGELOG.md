@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.0.0] - 2026-10-31
+
+### Breaking
+
+- **Money-moving and account-changing tools are off by default.** Transfers, airtime, data, electricity, cable, betting, refunds, card charges, checkout orders, sub-account and virtual-account changes and terminal assignment (20 tools) are only available when you set `NOMBA_ENABLE_SENSITIVE_TOOLS=true`. Text from Nomba (narrations, account names) can be written by third parties, so an injected instruction could otherwise get an assistant to pay someone. 21 read-only tools stay on.
+- **Node 24 or later** is required.
+- **Stricter start-up checks:** a zero, negative or non-numeric `NOMBA_MAX_TRANSACTION` or `NOMBA_SESSION_SPENDING_CAP` now stops the server instead of silently using the default, and the base URL host must be `sandbox.nomba.com` or `api.nomba.com` unless `NOMBA_ALLOW_INSECURE=true`.
+
+### Security
+
+- Redirects from the API are never followed, so a hostile response can't send your account ID or credentials to another host.
+- Request paths are confined to the API origin and base path (absolute URLs, `../` and encoded dots are rejected).
+- The spending guard now reserves an amount before the call, so parallel calls can't bypass the session cap, and keeps it after a timeout. Refunds are guarded and capped; data bundles and full refunds are limited by count (`NOMBA_MAX_UNPRICED_PURCHASES`).
+- Optional `NOMBA_ALLOWED_RECIPIENTS` restricts transfers to listed accounts, and `NOMBA_ALLOWED_CALLBACK_HOSTS` restricts callback URLs.
+- Card token IDs are masked in transaction responses.
+- The package is a single bundled file with no runtime dependencies; licences ship in `build/THIRD_PARTY_LICENSES.txt`.
+
+### Added
+
+- Tool annotations: destructive and open-world hints on money-moving tools.
+- `scripts/smoke.mjs` and `scripts/attack.mjs` (hostile-input test against a fake API), run in CI.
+- Documentation in `docs/`, setup for Claude Code, Cursor, VS Code, Windsurf, Codex CLI and Gemini CLI, and `AGENTS.md`.
+- Dependabot for npm and GitHub Actions.
+
+### Fixed
+
+- Concurrent token renewal could leave a request without a token, and a malformed token response is now reported clearly.
+- Creating a payment link no longer uses up the outbound spending cap.
+- Duplicate-payment detection now includes the bank or provider and treats `234…` and `0…` phone numbers as the same.
+- The server reports its real version; 429 responses report Retry-After.
+
+### Changed
+
+- Tool results are compact JSON.
+- SDK 1.32.2, zod 4.
+
 ## [1.2.0] - 2026-02-14
 
 ### Added
