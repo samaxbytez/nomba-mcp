@@ -1,0 +1,17 @@
+# Configuration
+
+All settings are environment variables set in your MCP client's `env` block.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NOMBA_CLIENT_ID` | Yes | none | Client ID from the Nomba developer dashboard |
+| `NOMBA_CLIENT_SECRET` | Yes | none | Client secret from the dashboard |
+| `NOMBA_ACCOUNT_ID` | Yes | none | Parent account ID (UUID) |
+| `NOMBA_BASE_URL` | No | `https://sandbox.nomba.com` | API base URL. `https://api.nomba.com` is production |
+| `NOMBA_ENABLE_SENSITIVE_TOOLS` | No | off | `true` registers the 20 money-moving and account-changing tools. See [tools.md](tools.md) |
+| `NOMBA_MAX_TRANSACTION` | No | `100000` | Largest single amount (NGN) a tool accepts |
+| `NOMBA_SESSION_SPENDING_CAP` | No | `500000` | Total NGN the server will spend in one session |
+| `NOMBA_PRODUCTION_CONFIRMED` | No | none | Must be `true` when the base URL is `api.nomba.com` |
+| `NOMBA_ALLOW_INSECURE` | No | none | `true` allows a non-HTTPS base URL (local fake API only) |
+
+Sandbox and production use different credentials. The server uses whichever base URL you set, so keep one config per environment rather than switching the URL under the same credentials.
