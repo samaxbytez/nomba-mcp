@@ -36,3 +36,7 @@ Run lint, type-check, test, build, smoke and the attack script before pushing; C
 ## Dependencies
 
 The SDK and zod are bundled, so a version change to either changes what users run. Treat it as a releasable change. Dependabot proposes updates weekly with a 7-day cooldown; review each one.
+
+## Releasing
+
+See [RELEASING.md](../RELEASING.md).
