@@ -84,14 +84,9 @@ export function registerElectricityTools(
     async ({ meterNumber, providerCode, meterType, amount }) => {
       logToolCall("nomba_buy_electricity", { meterNumber, providerCode, meterType, amount });
       try {
-        guard.validate(amount, meterNumber);
-        const result = await client.post("/v1/bills/electricity/pay", {
-          meterNumber,
-          providerCode,
-          meterType,
-          amount,
-        });
-        guard.record(amount, meterNumber);
+        const result = await guard.run(amount, `electricity:${providerCode}:${meterNumber}`, () =>
+          client.post("/v1/bills/electricity/pay", { meterNumber, providerCode, meterType, amount })
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

@@ -81,14 +81,9 @@ export function registerCableTools(
     async ({ smartcardNumber, providerCode, productCode, amount }) => {
       logToolCall("nomba_pay_cable_subscription", { smartcardNumber, providerCode, productCode, amount });
       try {
-        guard.validate(amount, smartcardNumber);
-        const result = await client.post("/v1/bills/cabletv/pay", {
-          smartcardNumber,
-          providerCode,
-          productCode,
-          amount,
-        });
-        guard.record(amount, smartcardNumber);
+        const result = await guard.run(amount, `cable:${providerCode}:${smartcardNumber}`, () =>
+          client.post("/v1/bills/cabletv/pay", { smartcardNumber, providerCode, productCode, amount })
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

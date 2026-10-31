@@ -83,14 +83,9 @@ export function registerTransferTools(
     async ({ amount, accountNumber, bankCode, narration }) => {
       logToolCall("nomba_transfer_to_bank", { amount, accountNumber, bankCode });
       try {
-        guard.validate(amount, accountNumber);
-        const result = await client.post("/v1/transfers/to-banks", {
-          amount,
-          accountNumber,
-          bankCode,
-          narration,
-        });
-        guard.record(amount, accountNumber);
+        const result = await guard.run(amount, `bank:${bankCode}:${accountNumber}`, () =>
+          client.post("/v1/transfers/to-banks", { amount, accountNumber, bankCode, narration })
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -118,12 +113,9 @@ export function registerTransferTools(
     async ({ amount, destinationAccountId, narration }) => {
       logToolCall("nomba_transfer_between_accounts", { amount, destinationAccountId });
       try {
-        guard.validate(amount, destinationAccountId);
-        const result = await client.post(
-          "/v1/transfers/between-accounts",
-          { amount, destinationAccountId, narration }
+        const result = await guard.run(amount, `internal:${destinationAccountId}`, () =>
+          client.post("/v1/transfers/between-accounts", { amount, destinationAccountId, narration })
         );
-        guard.record(amount, destinationAccountId);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

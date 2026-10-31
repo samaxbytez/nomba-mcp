@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, safeId, callbackUrlSchema } from "../utils.js";
 import { redactResponse, CHECKOUT_RULES } from "../redact.js";
 import { SpendingGuard } from "../spending-guard.js";
 
@@ -24,10 +24,7 @@ export function registerCheckoutTools(
           .string()
           .email()
           .describe("Customer's email address"),
-        callbackUrl: z
-          .string()
-          .url()
-          .startsWith("https://", "Callback URL must use HTTPS")
+        callbackUrl: callbackUrlSchema
           .describe("HTTPS URL to redirect the customer to after payment"),
         orderReference: z
           .string()
@@ -53,7 +50,7 @@ export function registerCheckoutTools(
     }) => {
       logToolCall("nomba_create_checkout_order", { amount, customerEmail });
       try {
-        guard.validate(amount, customerEmail);
+        // Creates a payment link (money coming in), so it doesn't use the spending cap.
         const result = await client.post("/v1/checkout/order", {
           order: {
             amount,
@@ -65,7 +62,6 @@ export function registerCheckoutTools(
           },
           tokenizeCard,
         });
-        guard.record(amount, customerEmail);
         return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -92,12 +88,9 @@ export function registerCheckoutTools(
     async ({ amount, tokenizedCardId, customerEmail }) => {
       logToolCall("nomba_charge_tokenized_card", { amount, customerEmail });
       try {
-        guard.validate(amount, tokenizedCardId);
-        const result = await client.post(
-          "/v1/checkout/charge-tokenized-card",
-          { amount, tokenizedCardId, customerEmail }
+        const result = await guard.run(amount, `card:${tokenizedCardId}`, () =>
+          client.post("/v1/checkout/charge-tokenized-card", { amount, tokenizedCardId, customerEmail })
         );
-        guard.record(amount, tokenizedCardId);
         return jsonResponse(redactResponse(result, CHECKOUT_RULES));
       } catch (error) {
         return errorResponse(error);
@@ -117,6 +110,7 @@ export function registerCheckoutTools(
         amount: z
           .number()
           .positive()
+          .max(guard.config.maxTransaction)
           .optional()
           .describe(
             "Amount to refund in Naira. Omit for full refund."
@@ -128,7 +122,10 @@ export function registerCheckoutTools(
       try {
         const body: Record<string, unknown> = { transactionId };
         if (amount !== undefined) body.amount = amount;
-        const result = await client.post("/v1/checkout/refund", body);
+        const refund = () => client.post("/v1/checkout/refund", body);
+        const key = `refund:${transactionId}`;
+        // A full refund has no known amount, so it is limited by count instead.
+        const result = amount === undefined ? await guard.runUnpriced(key, refund) : await guard.run(amount, key, refund);
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

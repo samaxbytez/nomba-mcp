@@ -11,7 +11,11 @@ All settings are environment variables set in your MCP client's `env` block.
 | `NOMBA_ENABLE_SENSITIVE_TOOLS` | No | off | `true` registers the 20 money-moving and account-changing tools. See [tools.md](tools.md) |
 | `NOMBA_MAX_TRANSACTION` | No | `100000` | Largest single amount (NGN) a tool accepts |
 | `NOMBA_SESSION_SPENDING_CAP` | No | `500000` | Total NGN the server will spend in one session |
+| `NOMBA_MAX_UNPRICED_PURCHASES` | No | `10` | Data bundles and full refunds have no known price, so they are limited by count per session |
+| `NOMBA_ALLOWED_CALLBACK_HOSTS` | No | none | Comma-separated hosts (and their subdomains) that callback URLs may use. Unset means any HTTPS host. Set it before enabling sensitive tools |
 | `NOMBA_PRODUCTION_CONFIRMED` | No | none | Must be `true` when the base URL is `api.nomba.com` |
 | `NOMBA_ALLOW_INSECURE` | No | none | `true` allows a non-HTTPS base URL (local fake API only) |
+
+Limits must be positive numbers; a zero, negative or non-numeric value stops the server at start rather than falling back to the default. The base URL host must be `sandbox.nomba.com` or `api.nomba.com` (case-insensitive) unless `NOMBA_ALLOW_INSECURE=true`.
 
 Sandbox and production use different credentials. The server uses whichever base URL you set, so keep one config per environment rather than switching the URL under the same credentials.

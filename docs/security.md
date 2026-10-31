@@ -7,7 +7,8 @@ The risk is **indirect prompt injection**. Text that Nomba returns (transaction 
 ## What protects you
 
 - **Money tools are off by default.** Transfers, airtime, data, electricity, cable, betting, refunds, card charges, checkout orders, sub-account and virtual-account changes, and terminal assignment (20 tools, listed in [tools.md](tools.md)) are not registered unless `NOMBA_ENABLE_SENSITIVE_TOOLS=true`. With it off, the assistant has no tool that can send money.
-- **Spending limits.** A per-transaction maximum, a session cap and duplicate detection (same amount and recipient within 60 seconds) apply to the money tools once enabled.
+- **Spending limits.** Once money tools are enabled, a per-transaction maximum, a session cap and duplicate detection (same amount and recipient within 60 seconds) apply to transfers, airtime, bills, betting, card charges and refunds. The amount is reserved before the call, so parallel calls can't slip past the cap, and it stays counted after a timeout or 5xx because the money may have moved. Data bundles and full refunds have no known price, so they are limited by count (`NOMBA_MAX_UNPRICED_PURCHASES`).
+- **Callback hosts.** Set `NOMBA_ALLOWED_CALLBACK_HOSTS` so injected text can't redirect payment notifications or customers to an attacker's URL.
 - **Annotations.** Tools declare `readOnlyHint`, `destructiveHint` and `openWorldHint`, so clients can ask you to confirm. Whether a client enforces this is up to the client.
 - **Request confinement.** Paths must be relative, can't contain `../` or encoded dots, and must resolve under the configured API origin and base path. IDs in paths accept only letters, digits, `_` and `-`.
 - **No redirects.** The client never follows a redirect, so a hostile response can't send your account ID or credentials to another host.
@@ -22,6 +23,9 @@ The risk is **indirect prompt injection**. Text that Nomba returns (transaction 
 
 ## What this does not cover
 
+- There is no recipient allowlist: with sensitive tools on, injected text could send money to any account up to your limits. Keep limits low and confirm every transfer in your client.
+- The caps live in the server process and reset on restart; they are best-effort protection, not a hard boundary.
+- Tool responses still pass names and account details into the model's context; redaction covers BVN, account numbers and card tokens only.
 - Enabling sensitive tools means an assistant can spend up to your limits. Prompt injection can't be ruled out, so keep the limits low, confirm each action in your client, and use sandbox credentials while testing.
 - The harness uses a fake API. It has not been run against Nomba's live behaviour.
 - Anyone who can read your MCP config can read your client secret. Use user-level config or a password prompt.

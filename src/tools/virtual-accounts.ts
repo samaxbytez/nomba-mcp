@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall, buildParams, safeId } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, buildParams, safeId, callbackUrlSchema } from "../utils.js";
 import { redactResponse, VIRTUAL_ACCOUNT_RULES } from "../redact.js";
 
 export function registerVirtualAccountTools(
@@ -83,10 +83,7 @@ export function registerVirtualAccountTools(
           .max(64)
           .optional()
           .describe("New account name (8-64 characters)"),
-        callbackUrl: z
-          .string()
-          .url()
-          .startsWith("https://", "Callback URL must use HTTPS")
+        callbackUrl: callbackUrlSchema
           .optional()
           .describe("HTTPS webhook URL for payment notifications on this account"),
       },
