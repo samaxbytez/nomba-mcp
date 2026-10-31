@@ -315,3 +315,27 @@ describe("NombaClient - HTTPS enforcement", () => {
     spy.mockRestore();
   });
 });
+
+describe("request path validation", () => {
+  it.each(["../x", "%2e%2e/x", "/v1/%2e%2e/x", "//evil.com/x", "https://evil.com/x", "v1/x", "/v1\\x"])(
+    "rejects %s without sending a request",
+    async (path) => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(mockOk(tokenResponse()));
+      const client = new NombaClient(BASE_CONFIG);
+      await expect(client.get(path)).rejects.toThrow("Invalid API path");
+      expect(fetchSpy.mock.calls.every(([u]) => String(u).startsWith("https://sandbox.nomba.com/"))).toBe(true);
+      fetchSpy.mockRestore();
+    }
+  );
+});
+
+describe("redirects", () => {
+  it("never follows redirects (credentials must not leave the API origin)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(mockOk(tokenResponse()));
+    const client = new NombaClient(BASE_CONFIG);
+    await client.get("/v1/accounts/parent");
+    expect(fetchSpy.mock.calls.length).toBeGreaterThan(0);
+    for (const [, init] of fetchSpy.mock.calls) expect((init as RequestInit).redirect).toBe("error");
+    fetchSpy.mockRestore();
+  });
+});

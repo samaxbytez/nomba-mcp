@@ -61,15 +61,34 @@ export class NombaClient {
 
     if (!config.baseUrl.startsWith("https://")) {
       if (process.env.NOMBA_ALLOW_INSECURE === "true") {
-        console.error(
-          "WARNING: NOMBA_ALLOW_INSECURE=true — using non-HTTPS base URL."
-        );
+        console.error("WARNING: NOMBA_ALLOW_INSECURE=true — using non-HTTPS base URL.");
       } else {
         throw new Error(
           "NOMBA_BASE_URL must use HTTPS. Set NOMBA_ALLOW_INSECURE=true to override for local development."
         );
       }
     }
+  }
+
+  // Only relative API paths may be requested, and the resolved URL must stay on
+  // the configured origin and under its base path (the regex alone misses %2e%2e/).
+  private resolveUrl(path: string): URL {
+    if (
+      !path.startsWith("/") ||
+      path.startsWith("//") ||
+      path.includes("\\") ||
+      path.includes("../") ||
+      /%2e|%2f|%5c/i.test(path)
+    ) {
+      throw new Error("Invalid API path");
+    }
+    const base = new URL(this.config.baseUrl);
+    const url = new URL(path, base);
+    const basePath = base.pathname.replace(/\/$/, "");
+    if (url.origin !== base.origin || !(url.pathname + "/").startsWith(basePath + "/")) {
+      throw new Error("Invalid API path");
+    }
+    return url;
   }
 
   private async issueToken(): Promise<void> {
@@ -87,6 +106,7 @@ export class NombaClient {
         client_secret: this.config.clientSecret,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      redirect: "error",
     });
 
     if (!response.ok) {
@@ -122,6 +142,7 @@ export class NombaClient {
           refresh_token: this.tokenData.refreshToken,
         }),
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        redirect: "error",
       });
 
       if (!response.ok) {
@@ -165,7 +186,7 @@ export class NombaClient {
     _retry = false
   ): Promise<T> {
     const token = await this.ensureToken();
-    const url = new URL(path, this.config.baseUrl);
+    const url = this.resolveUrl(path);
 
     if (params) {
       for (const [k, v] of Object.entries(params)) {
@@ -182,6 +203,7 @@ export class NombaClient {
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      redirect: "error",
     });
 
     if (!response.ok) {
@@ -191,21 +213,31 @@ export class NombaClient {
         return this.request<T>(method, path, body, params, true);
       }
 
+      if (response.status === 429) {
+        const retryAfter = response.headers?.get("retry-after");
+        throw new NombaApiError(
+          429,
+          "RATE_LIMITED",
+          retryAfter ? `Rate limited, retry after ${retryAfter}s` : "Rate limited"
+        );
+      }
+
       const errorBody = await response.text();
       throw parseApiError(response.status, errorBody);
     }
 
     const json = await response.json();
     if (json == null) {
-      throw new NombaApiError(response.status, "EMPTY_RESPONSE", "API returned empty response");
+      throw new NombaApiError(
+        response.status,
+        "EMPTY_RESPONSE",
+        "API returned empty response"
+      );
     }
     return json as T;
   }
 
-  async get<T = unknown>(
-    path: string,
-    params?: Record<string, string>
-  ): Promise<T> {
+  async get<T = unknown>(path: string, params?: Record<string, string>): Promise<T> {
     return this.request<T>("GET", path, undefined, params);
   }
 
