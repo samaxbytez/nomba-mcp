@@ -328,3 +328,14 @@ describe("request path validation", () => {
     }
   );
 });
+
+describe("redirects", () => {
+  it("never follows redirects (credentials must not leave the API origin)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(mockOk(tokenResponse()));
+    const client = new NombaClient(BASE_CONFIG);
+    await client.get("/v1/accounts/parent");
+    expect(fetchSpy.mock.calls.length).toBeGreaterThan(0);
+    for (const [, init] of fetchSpy.mock.calls) expect((init as RequestInit).redirect).toBe("error");
+    fetchSpy.mockRestore();
+  });
+});
