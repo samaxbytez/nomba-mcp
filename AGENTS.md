@@ -13,5 +13,6 @@ MCP server (TypeScript, stdio) over the Nomba payments API. Threat model: indire
 
 ## Safety invariants
 - Money-moving and account-changing tools go in `SENSITIVE_TOOLS` (`src/policy.ts`) and stay unregistered unless `NOMBA_ENABLE_SENSITIVE_TOOLS=true`. Update `SENSITIVE_COUNT` in `scripts/smoke.mjs` and `docs/tools.md` with it.
+- Transfers check `assertRecipientAllowed` (`src/config.ts`) before the guard.
 - IDs in request paths use `safeId`. All requests go through `NombaClient` (relative paths only, no redirects, 30s timeout).
 - Never log or return credentials. Runtime dependencies stay empty (SDK and zod are bundled).
