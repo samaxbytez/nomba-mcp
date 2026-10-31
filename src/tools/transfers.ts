@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
 import { jsonResponse, errorResponse, logToolCall, safeId } from "../utils.js";
+import { assertRecipientAllowed } from "../config.js";
 import { SpendingGuard } from "../spending-guard.js";
 
 export function registerTransferTools(
@@ -83,6 +84,7 @@ export function registerTransferTools(
     async ({ amount, accountNumber, bankCode, narration }) => {
       logToolCall("nomba_transfer_to_bank", { amount, accountNumber, bankCode });
       try {
+        assertRecipientAllowed(`${bankCode}:${accountNumber}`);
         const result = await guard.run(amount, `bank:${bankCode}:${accountNumber}`, () =>
           client.post("/v1/transfers/to-banks", { amount, accountNumber, bankCode, narration })
         );
@@ -113,6 +115,7 @@ export function registerTransferTools(
     async ({ amount, destinationAccountId, narration }) => {
       logToolCall("nomba_transfer_between_accounts", { amount, destinationAccountId });
       try {
+        assertRecipientAllowed(destinationAccountId);
         const result = await guard.run(amount, `internal:${destinationAccountId}`, () =>
           client.post("/v1/transfers/between-accounts", { amount, destinationAccountId, narration })
         );

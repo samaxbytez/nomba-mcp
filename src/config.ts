@@ -47,3 +47,14 @@ export function callbackHostAllowed(url: string, allowed: string[]): boolean {
     return false;
   }
 }
+
+/**
+ * NOMBA_ALLOWED_RECIPIENTS="058:0123456789,<nomba-account-id>": bank transfers must match a
+ * "bankCode:accountNumber" entry and internal transfers an account ID. Empty means no restriction.
+ */
+export function assertRecipientAllowed(recipient: string, raw = process.env.NOMBA_ALLOWED_RECIPIENTS): void {
+  const allowed = (raw ?? "").split(",").map((r) => r.trim().toLowerCase()).filter(Boolean);
+  if (allowed.length > 0 && !allowed.includes(recipient.toLowerCase())) {
+    throw new Error("Recipient is not in NOMBA_ALLOWED_RECIPIENTS");
+  }
+}

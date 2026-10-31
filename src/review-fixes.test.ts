@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SpendingGuard, SpendingGuardError } from "./spending-guard.js";
 import { NombaApiError } from "./client.js";
-import { classifyBaseUrl, parsePositive, callbackHostAllowed, parseHostList } from "./config.js";
+import { assertRecipientAllowed, classifyBaseUrl, parsePositive, callbackHostAllowed, parseHostList } from "./config.js";
 import { normalisePhone } from "./utils.js";
 import { registerCheckoutTools } from "./tools/checkout.js";
+import { registerTransferTools } from "./tools/transfers.js";
 import { registerAirtimeTools } from "./tools/airtime.js";
 import type { NombaClient } from "./client.js";
 
@@ -68,6 +69,33 @@ describe("config", () => {
 
   it("treats 234... and 0... phone numbers as the same", () => {
     expect(normalisePhone("2348012345678")).toBe(normalisePhone("08012345678"));
+  });
+});
+
+describe("recipient allowlist", () => {
+  it("allows anyone when unset, and only listed recipients when set", () => {
+    expect(() => assertRecipientAllowed("058:0123456789", "")).not.toThrow();
+    expect(() => assertRecipientAllowed("058:0123456789", "058:0123456789, abc-1")).not.toThrow();
+    expect(() => assertRecipientAllowed("abc-1", "058:0123456789,abc-1")).not.toThrow();
+    expect(() => assertRecipientAllowed("058:0999999999", "058:0123456789")).toThrow();
+    expect(() => assertRecipientAllowed("044:0123456789", "058:0123456789")).toThrow();
+  });
+
+  it("blocks transfers to unlisted recipients before any request", async () => {
+    process.env.NOMBA_ALLOWED_RECIPIENTS = "058:0123456789";
+    try {
+      const tools = new Map<string, (...a: any[]) => any>();
+      const server = { registerTool: (n: string, _c: unknown, cb: any) => void tools.set(n, cb) } as any;
+      const client = { post: vi.fn().mockResolvedValue({}) } as unknown as NombaClient;
+      registerTransferTools(server, client, guard());
+      const r = await tools.get("nomba_transfer_to_bank")!({ amount: 10, accountNumber: "0999999999", bankCode: "058" });
+      expect(r.isError).toBe(true);
+      expect((client.post as any).mock.calls).toHaveLength(0);
+      const ok = await tools.get("nomba_transfer_to_bank")!({ amount: 10, accountNumber: "0123456789", bankCode: "058" });
+      expect(ok.isError).toBeUndefined();
+    } finally {
+      delete process.env.NOMBA_ALLOWED_RECIPIENTS;
+    }
   });
 });
 
