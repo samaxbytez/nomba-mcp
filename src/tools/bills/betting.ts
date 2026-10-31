@@ -50,13 +50,9 @@ export function registerBettingTools(
     async ({ customerId, providerCode, amount }) => {
       logToolCall("nomba_fund_betting_account", { customerId, providerCode, amount });
       try {
-        guard.validate(amount, customerId);
-        const result = await client.post("/v1/bills/betting/pay", {
-          customerId,
-          providerCode,
-          amount,
-        });
-        guard.record(amount, customerId);
+        const result = await guard.run(amount, `betting:${providerCode}:${customerId}`, () =>
+          client.post("/v1/bills/betting/pay", { customerId, providerCode, amount })
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

@@ -20,6 +20,9 @@ export const TRANSACTION_RULES: RedactRule[] = [
   { field: "recipientAccountNumber", mode: "mask4" },
   { field: "bankAccountNumber", mode: "mask4" },
   { field: "bvn", mode: "full" },
+  // A usable card token in transaction history would let injected text charge the card.
+  { field: "tokenizedCardId", mode: "mask4" },
+  { field: "tokenKey", mode: "mask4" },
 ];
 
 export const VIRTUAL_ACCOUNT_RULES: RedactRule[] = [

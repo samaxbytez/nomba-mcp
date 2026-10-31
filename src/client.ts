@@ -54,7 +54,7 @@ function parseApiError(status: number, body: string): NombaApiError {
 export class NombaClient {
   private config: NombaClientConfig;
   private tokenData: TokenData | null = null;
-  private tokenPromise: Promise<void> | null = null;
+  private tokenPromise: Promise<string> | null = null;
 
   constructor(config: NombaClientConfig) {
     this.config = config;
@@ -91,73 +91,52 @@ export class NombaClient {
     return url;
   }
 
-  private async issueToken(): Promise<void> {
-    const url = `${this.config.baseUrl}/v1/auth/token/issue`;
-
-    const response = await fetch(url, {
+  private async fetchToken(path: string, body: Record<string, string>): Promise<TokenData> {
+    const response = await fetch(`${this.config.baseUrl}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         accountId: this.config.accountId,
       },
-      body: JSON.stringify({
-        grant_type: "client_credentials",
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       redirect: "error",
     });
 
     if (!response.ok) {
-      const errorBody = await response.text();
       // Never expose credentials in error messages
-      throw parseApiError(response.status, errorBody);
+      throw parseApiError(response.status, await response.text());
     }
 
-    const result = (await response.json()) as NombaApiResponse<TokenResponse>;
-    this.tokenData = {
-      accessToken: result.data.access_token,
-      refreshToken: result.data.refresh_token,
-      expiresAt: new Date(result.data.expiresAt),
-    };
+    const data = ((await response.json()) as NombaApiResponse<TokenResponse> | null)?.data;
+    const expiresAt = new Date(data?.expiresAt ?? NaN);
+    if (!data?.access_token || Number.isNaN(expiresAt.getTime())) {
+      throw new NombaApiError(response.status, "BAD_TOKEN_RESPONSE", "Token response was missing fields");
+    }
+    return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt };
   }
 
-  private async refreshToken(): Promise<void> {
-    if (!this.tokenData?.refreshToken) {
-      return this.issueToken();
-    }
+  private issueToken(): Promise<TokenData> {
+    return this.fetchToken("/v1/auth/token/issue", {
+      grant_type: "client_credentials",
+      client_id: this.config.clientId,
+      client_secret: this.config.clientSecret,
+    });
+  }
 
-    const url = `${this.config.baseUrl}/v1/auth/token/refresh`;
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accountId: this.config.accountId,
-        },
-        body: JSON.stringify({
+  private async renewToken(): Promise<TokenData> {
+    const refresh = this.tokenData?.refreshToken;
+    if (refresh) {
+      try {
+        return await this.fetchToken("/v1/auth/token/refresh", {
           grant_type: "refresh_token",
-          refresh_token: this.tokenData.refreshToken,
-        }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        redirect: "error",
-      });
-
-      if (!response.ok) {
-        return this.issueToken();
+          refresh_token: refresh,
+        });
+      } catch {
+        // fall through to a fresh token
       }
-
-      const result = (await response.json()) as NombaApiResponse<TokenResponse>;
-      this.tokenData = {
-        accessToken: result.data.access_token,
-        refreshToken: result.data.refresh_token,
-        expiresAt: new Date(result.data.expiresAt),
-      };
-    } catch {
-      return this.issueToken();
     }
+    return this.issueToken();
   }
 
   private async ensureToken(): Promise<string> {
@@ -168,14 +147,17 @@ export class NombaClient {
       return this.tokenData.accessToken;
     }
 
-    if (!this.tokenPromise) {
-      const renew = this.tokenData ? this.refreshToken() : this.issueToken();
-      this.tokenPromise = renew.finally(() => {
+    // One renewal at a time; every waiter gets the token from the promise itself,
+    // so a concurrent 401 clearing this.tokenData can't leave them with null.
+    this.tokenPromise ??= this.renewToken()
+      .then((data) => {
+        this.tokenData = data;
+        return data.accessToken;
+      })
+      .finally(() => {
         this.tokenPromise = null;
       });
-    }
-    await this.tokenPromise;
-    return this.tokenData!.accessToken;
+    return this.tokenPromise;
   }
 
   async request<T = unknown>(
@@ -209,7 +191,8 @@ export class NombaClient {
     if (!response.ok) {
       // On 401, clear token and retry once
       if (response.status === 401 && !_retry) {
-        this.tokenData = null;
+        // Only drop the token that was rejected, not a newer one another request fetched.
+        if (this.tokenData?.accessToken === token) this.tokenData = null;
         return this.request<T>(method, path, body, params, true);
       }
 

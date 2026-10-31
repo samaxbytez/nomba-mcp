@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { callbackHostAllowed, parseHostList } from "./config.js";
 
 export const TOKEN_BUFFER_MS = 60_000;
 export const REQUEST_TIMEOUT_MS = 30_000;
@@ -12,9 +13,27 @@ export const safeId = z
     "ID must contain only alphanumeric characters, hyphens, and underscores"
   );
 
+/** 2348012345678 and 08012345678 are the same number. */
+// HTTPS only; if NOMBA_ALLOWED_CALLBACK_HOSTS is set, the host must be on it. A callback
+// URL decides where payment notifications or customers are sent, so injected text must
+// not be able to point it at an attacker.
+export const callbackUrlSchema = z
+  .string()
+  .url()
+  .startsWith("https://", "Callback URL must use HTTPS")
+  .refine(
+    (u) => callbackHostAllowed(u, parseHostList(process.env.NOMBA_ALLOWED_CALLBACK_HOSTS)),
+    "Callback host is not in NOMBA_ALLOWED_CALLBACK_HOSTS"
+  );
+
+export function normalisePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.startsWith("234") ? "0" + digits.slice(3) : digits;
+}
+
 export function jsonResponse(data: unknown) {
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    content: [{ type: "text" as const, text: JSON.stringify(data) }],
   };
 }
 

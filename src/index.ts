@@ -13,6 +13,7 @@ import { registerAirtimeTools } from "./tools/airtime.js";
 import { registerSubAccountTools } from "./tools/sub-accounts.js";
 import { registerBankListResource } from "./resources/bank-list.js";
 import { SpendingGuard } from "./spending-guard.js";
+import { classifyBaseUrl, parseCount, parsePositive } from "./config.js";
 import { withToolPolicy } from "./policy.js";
 import { VERSION } from "./version.js";
 
@@ -29,7 +30,22 @@ if (!NOMBA_CLIENT_ID || !NOMBA_CLIENT_SECRET || !NOMBA_ACCOUNT_ID) {
   process.exit(1);
 }
 
-if (NOMBA_BASE_URL.includes("api.nomba.com")) {
+let environment: ReturnType<typeof classifyBaseUrl>;
+let spendingGuard: SpendingGuard;
+try {
+  environment = classifyBaseUrl(NOMBA_BASE_URL, process.env.NOMBA_ALLOW_INSECURE === "true");
+  spendingGuard = new SpendingGuard({
+    maxTransaction: parsePositive("NOMBA_MAX_TRANSACTION", process.env.NOMBA_MAX_TRANSACTION, 100_000),
+    sessionSpendingCap: parsePositive("NOMBA_SESSION_SPENDING_CAP", process.env.NOMBA_SESSION_SPENDING_CAP, 500_000),
+    duplicateWindowMs: 60_000,
+    maxUnpricedPerSession: parseCount("NOMBA_MAX_UNPRICED_PURCHASES", process.env.NOMBA_MAX_UNPRICED_PURCHASES, 10),
+  });
+} catch (error) {
+  console.error(`ERROR: ${(error as Error).message}`);
+  process.exit(1);
+}
+
+if (environment === "production") {
   if (process.env.NOMBA_PRODUCTION_CONFIRMED !== "true") {
     console.error(
       "ERROR: Base URL points to production (api.nomba.com). Set NOMBA_PRODUCTION_CONFIRMED=true to confirm."
@@ -38,12 +54,6 @@ if (NOMBA_BASE_URL.includes("api.nomba.com")) {
   }
   console.error("NOTICE: Running against PRODUCTION Nomba API");
 }
-
-const spendingGuard = new SpendingGuard({
-  maxTransaction: Number(process.env.NOMBA_MAX_TRANSACTION) || 100_000,
-  sessionSpendingCap: Number(process.env.NOMBA_SESSION_SPENDING_CAP) || 500_000,
-  duplicateWindowMs: 60_000,
-});
 
 const nombaClient = new NombaClient({
   baseUrl: NOMBA_BASE_URL,

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { NombaClient } from "../client.js";
-import { jsonResponse, errorResponse, logToolCall } from "../utils.js";
+import { jsonResponse, errorResponse, logToolCall, normalisePhone } from "../utils.js";
 import { SpendingGuard } from "../spending-guard.js";
 
 export function registerAirtimeTools(
@@ -38,11 +38,11 @@ export function registerAirtimeTools(
     async ({ phoneNumber, amount, network }) => {
       logToolCall("nomba_buy_airtime", { phoneNumber, amount, network });
       try {
-        guard.validate(amount, phoneNumber);
         const body: Record<string, unknown> = { phoneNumber, amount };
         if (network) body.network = network;
-        const result = await client.post("/v1/bills/airtime/pay", body);
-        guard.record(amount, phoneNumber);
+        const result = await guard.run(amount, `airtime:${normalisePhone(phoneNumber)}`, () =>
+          client.post("/v1/bills/airtime/pay", body)
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);
@@ -107,13 +107,10 @@ export function registerAirtimeTools(
     async ({ phoneNumber, dataPlanCode, network }) => {
       logToolCall("nomba_buy_data", { phoneNumber, dataPlanCode, network });
       try {
-        guard.validate(0, `${phoneNumber}:${dataPlanCode}`);
-        const result = await client.post("/v1/bills/data/pay", {
-          phoneNumber,
-          dataPlanCode,
-          network,
-        });
-        guard.record(0, `${phoneNumber}:${dataPlanCode}`);
+        // The plan price isn't known here, so data purchases are limited by count.
+        const result = await guard.runUnpriced(`data:${normalisePhone(phoneNumber)}:${dataPlanCode}`, () =>
+          client.post("/v1/bills/data/pay", { phoneNumber, dataPlanCode, network })
+        );
         return jsonResponse(result);
       } catch (error) {
         return errorResponse(error);

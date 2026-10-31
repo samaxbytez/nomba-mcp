@@ -13,15 +13,15 @@ describe("jsonResponse", () => {
   it("returns correct MCP content structure", () => {
     const result = jsonResponse({ foo: "bar" });
     expect(result).toEqual({
-      content: [{ type: "text", text: '{\n  "foo": "bar"\n}' }],
+      content: [{ type: "text", text: '{"foo":"bar"}' }],
     });
   });
 
-  it("handles nested objects with pretty printing", () => {
+  it("handles nested objects", () => {
     const data = { a: { b: [1, 2] } };
     const result = jsonResponse(data);
     expect(JSON.parse(result.content[0].text)).toEqual(data);
-    expect(result.content[0].text).toContain("\n"); // pretty-printed
+    expect(result.content[0].text).not.toContain("\n"); // compact
   });
 });
 

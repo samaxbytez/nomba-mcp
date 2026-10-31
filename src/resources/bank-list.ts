@@ -20,7 +20,7 @@ export function registerBankListResource(
       if (!cache || Date.now() >= cache.expiresAt) {
         const result = await client.get("/v1/transfers/banks");
         cache = {
-          data: JSON.stringify(result, null, 2),
+          data: JSON.stringify(result),
           expiresAt: Date.now() + CACHE_TTL_MS,
         };
       }
